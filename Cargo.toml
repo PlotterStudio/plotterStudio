@@ -146,12 +146,6 @@ undocumented_unsafe_blocks = "warn"
 debug-assertions = false
 opt-level = 3
 
-# Dependencies (wasmtime above all) are built optimised in dev and test builds. Unoptimised, the
-# WebAssembly compiler is slow enough on a small CI runner to blow through the plugin host's call
-# deadlines, which the tests exercise for real.
-[profile.dev.package."*"]
-opt-level = 2
-
 [profile.release]
 debug = "line-tables-only"
 lto = "thin"
