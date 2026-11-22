@@ -56,6 +56,12 @@ jobs:
           lipo -info target/release/plotter-studio
       - run: cargo install cargo-packager --locked
       - run: cargo packager --release -p ps-app --formats dmg
+      # The binaries inside are universal; the packager names the file after the runner's CPU.
+      - name: Name the disk image for what it is
+        run: |
+          for f in target/release/*.dmg; do
+            mv "$f" "target/release/Plotter-Studio_universal.dmg"
+          done
       - uses: actions/upload-artifact@v4
         with:
           name: macos-unsigned
@@ -165,7 +171,8 @@ jobs:
           merge-multiple: true
       - run: rustup toolchain install
       - run: cargo install cargo-cyclonedx --locked
-      - run: cargo cyclonedx --all
+      # JSON, not the default XML: the release collects *.cdx.json.
+      - run: cargo cyclonedx --all --format json
       - name: Checksums and their signature
         env:
           MINISIGN_KEY: ${{ secrets.MINISIGN_SECRET_KEY }}
