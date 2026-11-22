@@ -53,3 +53,9 @@ fn installed_device_plugins_live_in_a_plugins_folder_under_the_data_root() {
     let root = default_root().unwrap();
     assert_eq!(default_plugins_dir().unwrap(), root.join("plugins"));
 }
+
+#[test]
+fn log_files_live_in_a_logs_folder_under_the_data_root() {
+    let root = default_root().unwrap();
+    assert_eq!(default_log_dir().unwrap(), root.join("logs"));
+}

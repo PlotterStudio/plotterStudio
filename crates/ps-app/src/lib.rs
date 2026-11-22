@@ -15,6 +15,7 @@ mod import;
 mod jobs;
 mod l10n;
 mod library_manager;
+pub mod logging;
 mod machine;
 pub mod mcp;
 mod numfmt;
@@ -58,7 +59,7 @@ pub use selection::{Item, Selection};
 pub use session::{SessionGuard, Snapshot, Startup, project_id, write_panic_files};
 pub use shell::{Dialogs, export_to_folder, handle_effect};
 pub use state::{
-    AppState, CompileSummary, Compiled, Effect, FocusPanel, MachineChoice, MatSummary,
+    AppState, CompileSummary, Compiled, Effect, FocusPanel, JobStatus, MachineChoice, MatSummary,
     MaterialChoice, Mode, OperationRow, Preview, PreviewView, ToolChoice,
 };
 pub use text_object::{TextParams, text_paths};

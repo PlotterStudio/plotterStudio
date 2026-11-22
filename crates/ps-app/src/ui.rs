@@ -47,6 +47,8 @@ pub struct App {
     pub(crate) preview_cache: Option<extras::PreviewCache>,
     /// Whether to build the preview picture on the spot instead of on a thread.
     pub(crate) preview_blocking: bool,
+    /// The picture key a build already failed for, so it is not tried again every frame.
+    pub(crate) preview_failed: Option<(u64, usize, u32, u64)>,
     pub(crate) preview_speed: f64,
     pub(crate) preview_pos: f64,
     pub(crate) export_status: Option<String>,
@@ -132,6 +134,7 @@ impl App {
             preview_worker: None,
             preview_cache: None,
             preview_blocking: false,
+            preview_failed: None,
             preview_speed: 1.0,
             preview_pos: 0.0,
             export_status: None,
@@ -1368,6 +1371,12 @@ fn draw_selection_box(painter: &egui::Painter, app: &App, origin: egui::Pos2, ac
     }
 }
 
+/// Whether a path's start is worth showing: something will be cut or drawn along it, or the user
+/// fixed its start by hand. A shape with no operation has no start to speak of.
+fn start_is_meaningful(path: &ps_model::ShapePath) -> bool {
+    path.start_locked || path.ops.iter().any(|op| op.enabled)
+}
+
 /// Where each selected path starts and which way it runs: a green dot with an arrow along the
 /// first stretch. A start the user fixed is ringed in orange.
 fn draw_start_points(painter: &egui::Painter, app: &App, origin: egui::Pos2) {
@@ -1386,7 +1395,11 @@ fn draw_start_points(painter: &egui::Painter, app: &App, origin: egui::Pos2) {
             Some((ids, delta)) if ids.contains(&object.id) => *delta * object.transform,
             _ => object.transform,
         };
-        for path in object.paths.iter().filter(|p| !p.geom.is_empty()) {
+        for path in object
+            .paths
+            .iter()
+            .filter(|p| !p.geom.is_empty() && start_is_meaningful(p))
+        {
             // Where the cut really begins: a path the user has not given a start follows the
             // compiler's own rule for the tool that draws it, so the marker never lies.
             let drive = path

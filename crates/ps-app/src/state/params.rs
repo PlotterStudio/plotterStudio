@@ -60,6 +60,24 @@ impl ParamView {
     }
 }
 
+/// The range a parameter can usefully take on this machine: the tool's range narrowed to what the
+/// machine can do (the same limits the compiler applies). The tool's own range when the two do
+/// not overlap, so a slider never has an empty or reversed track.
+fn machine_range(
+    name: &str,
+    min: f64,
+    max: f64,
+    profile: &ps_library::MachineProfile,
+) -> (f64, f64) {
+    let narrowed_min = ps_model::clamp_to_machine(name, min, profile).0;
+    let narrowed_max = ps_model::clamp_to_machine(name, max, profile).0;
+    if narrowed_min < narrowed_max {
+        (narrowed_min, narrowed_max)
+    } else {
+        (min, max)
+    }
+}
+
 impl AppState {
     /// The operations of `row` on the current mat, with where each lives.
     pub(super) fn row_operations(
@@ -116,11 +134,13 @@ impl AppState {
                     ParamType::Integer => 1.0,
                     ParamType::Number => nice_step(spec.max - spec.min),
                 };
+                // The compiler clamps to the machine, so the slider ends where the machine does.
+                let (min, max) = machine_range(name, spec.min, spec.max, profile);
                 Some(ParamView {
                     name: name.clone(),
                     unit: spec.unit.clone().unwrap_or_default(),
-                    min: spec.min,
-                    max: spec.max,
+                    min,
+                    max,
                     step,
                     value: got.value,
                     origin: match got.source {

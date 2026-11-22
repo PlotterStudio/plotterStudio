@@ -55,6 +55,45 @@ fn a_missing_version_falls_back_to_the_newest_with_a_warning() {
 }
 
 #[test]
+fn a_newer_compatible_version_stands_in_without_a_warning() {
+    let s = snap();
+    // 1.1.0 is not installed, 1.2.0 is: the same major version, newer, so nothing to tell.
+    let found = s.resolve_tool(&r("generic.drag-blade@1.1.0")).unwrap();
+    assert_eq!(found.item.version.to_string(), "1.2.0");
+    assert_eq!(found.warning, None);
+}
+
+#[test]
+fn an_older_version_standing_in_is_always_a_warning() {
+    let s = snap();
+    let found = s.resolve_tool(&r("generic.drag-blade@1.5.0")).unwrap();
+    assert_eq!(found.item.version.to_string(), "1.2.0");
+    assert!(
+        found.warning.is_some(),
+        "the project wants something newer than is installed"
+    );
+}
+
+#[test]
+fn before_one_point_oh_only_a_newer_patch_is_compatible() {
+    let s = LibrarySnapshot::from_entries([tool_with("0.9.1", "Early blade")]);
+    assert_eq!(
+        s.resolve_tool(&r("generic.drag-blade@0.9.0"))
+            .unwrap()
+            .warning,
+        None,
+        "0.9.1 stands in for 0.9.0"
+    );
+    assert!(
+        s.resolve_tool(&r("generic.drag-blade@0.8.0"))
+            .unwrap()
+            .warning
+            .is_some(),
+        "a different minor version of a 0.x entry may break"
+    );
+}
+
+#[test]
 fn a_missing_id_is_an_error_that_blocks_export() {
     let s = snap();
     let err = s.resolve_tool(&r("nobody.nothing@1.0.0")).unwrap_err();

@@ -8,7 +8,7 @@ use super::zest::{self, Icon, Weight, font, palette, text};
 use super::{App, chrome, count_f64, extras, machine_panel};
 use crate::l10n::Arg;
 use crate::numfmt::format_duration_ms;
-use crate::state::Mode;
+use crate::state::{JobStatus, Mode};
 
 // ---- shared pieces ----
 
@@ -322,13 +322,12 @@ fn sim_bar(ui: &mut egui::Ui, app: &mut App, p: crate::theme::Palette) {
     zest::shadow(ui.painter(), bar, 34, true);
     ui.painter().rect_filled(bar, 34.0, p.panel);
     if total == 0 {
-        let message = if app.state.compile_running() {
-            app.loc.tr("status-compiling")
-        } else if let Some(why) = app.state.compile_error() {
-            app.loc
-                .tr_args("preview-failed", &[("why", Arg::Text(why))])
-        } else {
-            app.loc.tr("preview-nothing")
+        let message = match app.state.job_status() {
+            JobStatus::Failed(why) => app
+                .loc
+                .tr_args("preview-failed", &[("why", Arg::Text(&why))]),
+            JobStatus::Ready | JobStatus::OutOfDate => app.loc.tr("preview-nothing"),
+            _ => extras::job_status_text(app),
         };
         let response = ui.interact(bar, ui.id().with("nothing"), Sense::hover());
         ui.painter().text(
@@ -645,13 +644,13 @@ fn export_card(ui: &mut egui::Ui, app: &mut App, p: crate::theme::Palette, now_m
             p.muted,
         ));
     } else {
-        ui.label(text(
-            ui.ctx(),
-            app.loc.tr("export-nothing"),
-            14.0,
-            Weight::Regular,
-            p.muted,
-        ));
+        let words = match app.state.job_status() {
+            JobStatus::NoMachine | JobStatus::Blocked { .. } | JobStatus::Failed(_) => {
+                extras::job_status_text(app)
+            }
+            _ => app.loc.tr("export-nothing"),
+        };
+        ui.label(text(ui.ctx(), words, 14.0, Weight::Regular, p.muted));
     }
     ui.add_space(12.0);
     mat_rows(ui, app, p);

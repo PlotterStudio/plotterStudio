@@ -249,6 +249,31 @@ pub struct MatSummary {
     pub current: bool,
 }
 
+/// Where the job stands, in the words the status bar, the preview and the export panel share.
+///
+/// "Out of date" is only for an edit whose compile has not finished; every other reason a job is
+/// missing has its own value, so the user is told what to do.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum JobStatus {
+    /// No machine is chosen, so nothing can be compiled.
+    NoMachine,
+    /// A compile is running.
+    Compiling,
+    /// The last compile could not run at all.
+    Failed(String),
+    /// The compile finished but the job has errors, so it cannot be previewed or exported.
+    Blocked {
+        /// How many errors block it.
+        errors: usize,
+    },
+    /// The compile finished and there is nothing to do: no shape has an operation yet.
+    NothingToDo,
+    /// The document changed since the last compile, which is yet to come.
+    OutOfDate,
+    /// The job matches the document and can be previewed and exported.
+    Ready,
+}
+
 /// A material the library offers.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MaterialChoice {
@@ -402,6 +427,14 @@ fn ensure_mat(doc: Document) -> (Document, MatId) {
     (with, id)
 }
 
+/// The newest version of the machine profile with this id, if the library has one.
+fn newest_profile(libs: &LibrarySnapshot, id: &str) -> Option<Arc<MachineProfile>> {
+    libs.profiles()
+        .into_iter()
+        .filter(|p| p.id == id)
+        .max_by(|a, b| a.version.cmp(&b.version))
+}
+
 impl AppState {
     /// A new untitled project with one 12 x 12 inch mat.
     #[must_use]
@@ -410,16 +443,13 @@ impl AppState {
             |_| LibrarySnapshot::from_entries(Vec::new()),
             LibrarySnapshot::from_entries,
         );
-        let wanted = settings
-            .default_machine
-            .as_deref()
-            .unwrap_or(DEFAULT_MACHINE);
-        let profile = libs
-            .profiles()
-            .iter()
-            .filter(|p| p.id == wanted)
-            .max_by(|a, b| a.version.cmp(&b.version))
-            .cloned();
+        let profile = newest_profile(
+            &libs,
+            settings
+                .default_machine
+                .as_deref()
+                .unwrap_or(DEFAULT_MACHINE),
+        );
         let registry = Registry::new(&settings.shortcuts);
         let meta = ProjectMeta::new(
             "Untitled",
@@ -704,6 +734,36 @@ impl AppState {
         }
     }
 
+    /// Where the job stands; see [`JobStatus`].
+    #[must_use]
+    pub fn job_status(&self) -> JobStatus {
+        if self.profile.is_none() {
+            return JobStatus::NoMachine;
+        }
+        if self.compiling {
+            return JobStatus::Compiling;
+        }
+        if let Some(why) = &self.compile_error {
+            return JobStatus::Failed(why.clone());
+        }
+        let Some(c) = self.compiled.as_ref() else {
+            return JobStatus::OutOfDate;
+        };
+        if c.doc_generation != self.store.generation() {
+            return JobStatus::OutOfDate;
+        }
+        if c.job.is_blocked() {
+            return JobStatus::Blocked {
+                errors: c.job.diagnostics.count(Severity::Error),
+            };
+        }
+        if c.job.mats.is_empty() {
+            JobStatus::NothingToDo
+        } else {
+            JobStatus::Ready
+        }
+    }
+
     /// The compiled job if it still matches the document and has something to run.
     pub(crate) fn fresh_compile(&self) -> Option<&Arc<Compiled>> {
         self.compiled.as_ref().filter(|c| {
@@ -893,6 +953,7 @@ impl AppState {
 
     fn start_compile(&mut self) {
         let Some(profile) = self.profile.clone() else {
+            tracing::warn!("no machine is chosen, so the job is not prepared");
             return;
         };
         let generation = self.jobs.next_generation();
@@ -927,6 +988,20 @@ impl AppState {
         match outcome {
             Outcome::Done { value, .. } => match value.result {
                 Ok(job) => {
+                    if job.is_blocked() {
+                        tracing::warn!(
+                            errors = job.diagnostics.count(Severity::Error),
+                            "the job is blocked"
+                        );
+                        for d in job
+                            .diagnostics
+                            .iter()
+                            .filter(|d| d.severity == Severity::Error)
+                            .take(10)
+                        {
+                            tracing::warn!(key = d.key.as_str(), args = ?d.args, "blocking error");
+                        }
+                    }
                     self.compile_error = None;
                     self.compiled = Some(Arc::new(Compiled {
                         job,
@@ -934,11 +1009,13 @@ impl AppState {
                     }));
                 }
                 Err(why) => {
+                    tracing::error!(%why, "the job could not be prepared");
                     self.compile_error = Some(why);
                     self.compiled = None;
                 }
             },
             Outcome::Panicked { message, .. } => {
+                tracing::error!(%message, "preparing the job panicked");
                 self.compile_error = Some(message);
                 self.compiled = None;
             }
@@ -1522,6 +1599,7 @@ impl AppState {
         else {
             return false;
         };
+        tracing::info!(machine = %profile.id, version = %profile.version, "machine chosen");
         self.profile = Some(profile);
         self.compiled = None;
         self.debounce.touch(self.clock_ms);
@@ -1580,6 +1658,14 @@ impl AppState {
     #[must_use]
     pub fn preview(&self, px_per_mm: f64, up_to: usize) -> Option<Preview> {
         self.preview_inputs()?.build(px_per_mm, up_to)
+    }
+
+    /// Whether there is a compiled job for this mat to draw a preview of; false when none has
+    /// compiled yet or the job is blocked by errors.
+    #[must_use]
+    pub(crate) fn can_preview(&self) -> bool {
+        self.compiled()
+            .is_some_and(|c| c.job.mat(self.mat).is_some())
     }
 
     /// What building the preview needs, owned so the work can run on another thread.
@@ -2412,8 +2498,27 @@ impl AppState {
 
     /// Replaces the library the app compiles against (after the user installs or removes
     /// something) and compiles again.
+    ///
+    /// The machine is chosen again from the new library: the one in use if it is still there (at
+    /// its newest version), else the one the settings name, else the built-in default. A machine
+    /// that comes from an installed plugin's library is not in the built-in one the app starts
+    /// with, so this is what selects it at start-up.
     pub fn replace_libraries(&mut self, libs: LibrarySnapshot) {
         self.libs = libs;
+        let current = self.profile.as_ref().map(|p| p.id.clone());
+        let saved = self.settings.default_machine.clone();
+        self.profile = [current.as_deref(), saved.as_deref(), Some(DEFAULT_MACHINE)]
+            .into_iter()
+            .flatten()
+            .find_map(|id| newest_profile(&self.libs, id));
+        if let Some(p) = &self.profile {
+            tracing::info!(machine = %p.id, version = %p.version, "library loaded");
+        } else {
+            tracing::warn!(
+                wanted = ?saved,
+                "library loaded, but it has no machine to prepare jobs for"
+            );
+        }
         self.start_compile();
     }
 

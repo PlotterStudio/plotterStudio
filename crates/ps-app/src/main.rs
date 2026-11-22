@@ -150,6 +150,7 @@ fn install_panic_hook(state_dir: PathBuf, snapshot: Snapshot) {
     let previous = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {
         let backtrace = std::backtrace::Backtrace::force_capture().to_string();
+        tracing::error!(panic = %info, "the application panicked");
         let _ = write_panic_files(
             &state_dir,
             &snapshot,
@@ -165,6 +166,13 @@ fn install_panic_hook(state_dir: PathBuf, snapshot: Snapshot) {
 }
 
 fn main() -> eframe::Result {
+    // Kept until the program ends, so the last lines reach the file.
+    let _log = ps_library::default_log_dir().and_then(|dir| ps_app::logging::init(&dir));
+    tracing::info!(
+        version = env!("CARGO_PKG_VERSION"),
+        os = std::env::consts::OS,
+        "Plotter Studio starting"
+    );
     let settings_path = default_settings_path();
     let settings = settings_path
         .as_deref()
@@ -184,6 +192,7 @@ fn main() -> eframe::Result {
     if let Some(root) = ps_library::default_root()
         && let Err(e) = app.open_library(&root)
     {
+        tracing::error!(error = %e, "the library could not be opened");
         app.set_notice(format!("The library could not be opened: {e}"));
     }
     if let Some(root) = ps_library::default_root() {

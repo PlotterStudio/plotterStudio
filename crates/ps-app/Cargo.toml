@@ -43,6 +43,9 @@ sys-locale.workspace = true
 # Not used directly: enables the graphics backends eframe's wgpu renderer needs.
 wgpu.workspace = true
 thiserror.workspace = true
+tracing.workspace = true
+tracing-appender.workspace = true
+tracing-subscriber.workspace = true
 tokio = { workspace = true, features = ["rt", "sync", "time"] }
 unic-langid.workspace = true
 

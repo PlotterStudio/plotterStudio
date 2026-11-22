@@ -1825,7 +1825,15 @@ fn a_row_lists_its_tools_parameters_with_their_ranges_and_defaults() {
     let params = s.row_params(row);
     let force = params.iter().find(|q| q.name == "force").expect("force");
     assert_eq!(force.unit, "gf");
-    assert!((force.min - 50.0).abs() < 1e-9 && (force.max - 4000.0).abs() < 1e-9);
+    // The blade allows 50 to 4000 gf; the machine only 0 to 400, and the range is what the
+    // machine can do.
+    assert!((force.min - 50.0).abs() < 1e-9 && (force.max - 400.0).abs() < 1e-9);
+    let speed = params.iter().find(|q| q.name == "speed").expect("speed");
+    assert!(
+        (speed.max - 101.6).abs() < 1e-9,
+        "the machine's top speed, not the blade's 400: {}",
+        speed.max
+    );
     assert!(
         (force.value - 350.0).abs() < 1e-9,
         "the tool default: {}",
@@ -2011,4 +2019,157 @@ fn only_fill_rows_have_fill_settings() {
     let mut s = state();
     let row = cut_row(&mut s);
     assert!(s.row_fill(row).is_none());
+}
+
+// ---- the machine, and what the job status says ----
+
+/// The built-in library plus one more machine, as an installed plugin's library would add.
+fn library_with_machine(id: &str, bump_patch: bool) -> LibrarySnapshot {
+    let mut entries = builtin_entries().expect("the built-in library loads");
+    let mut profile = entries
+        .iter()
+        .find_map(|e| match e {
+            ps_library::Entry::Profile(p) if p.id == "generic.cutter-small" => Some(p.clone()),
+            _ => None,
+        })
+        .expect("a generic cutter exists");
+    profile.id = id.to_owned();
+    if bump_patch {
+        profile.version.patch += 1;
+    }
+    entries.push(ps_library::Entry::Profile(profile));
+    LibrarySnapshot::from_entries(entries)
+}
+
+fn state_preferring(machine: &str) -> AppState {
+    AppState::new(Settings {
+        default_machine: Some(machine.to_owned()),
+        ..Settings::default()
+    })
+}
+
+#[test]
+fn a_saved_machine_from_an_installed_library_is_chosen_once_that_library_loads() {
+    let mut s = state_preferring("acme.mill");
+    assert_eq!(
+        s.current_machine_id(),
+        None,
+        "the built-in library does not have it"
+    );
+    s.replace_libraries(library_with_machine("acme.mill", false));
+    assert_eq!(s.current_machine_id().as_deref(), Some("acme.mill"));
+}
+
+#[test]
+fn loading_a_newer_version_of_the_chosen_machine_switches_to_it() {
+    let mut s = state_preferring("acme.mill");
+    s.replace_libraries(library_with_machine("acme.mill", false));
+    let before = s.profile().unwrap().version.clone();
+    s.replace_libraries(library_with_machine("acme.mill", true));
+    assert!(s.profile().unwrap().version > before);
+}
+
+#[test]
+fn a_machine_that_leaves_the_library_falls_back_to_the_default() {
+    let mut s = state_preferring("acme.mill");
+    s.replace_libraries(library_with_machine("acme.mill", false));
+    s.replace_libraries(library_with_machine("acme.other", false));
+    assert_eq!(
+        s.current_machine_id().as_deref(),
+        Some("generic.cutter-small")
+    );
+}
+
+#[test]
+fn without_a_machine_nothing_compiles_and_the_status_says_to_choose_one() {
+    let mut s = state_preferring("acme.mill");
+    draw_rect(&mut s, p(10.0, 10.0), p(60.0, 50.0), 0);
+    s.assign_operation(OpKind::Cut, BLADE, 0);
+    s.tick(100);
+    assert!(!s.compile_running());
+    assert_eq!(s.job_status(), JobStatus::NoMachine);
+}
+
+#[test]
+fn a_job_the_machine_cannot_run_is_blocked_and_says_how_many_errors() {
+    let mut s = state();
+    assert!(s.set_machine("generic.grbl-pen-plotter"));
+    draw_rect(&mut s, p(10.0, 10.0), p(60.0, 50.0), 0);
+    s.assign_operation(OpKind::Foil, "generic.foil-transfer@1.0.0", 0);
+    s.tick(100);
+    assert!(s.wait_for_compile(Duration::from_secs(60)));
+    match s.job_status() {
+        JobStatus::Blocked { errors } => assert!(errors >= 1, "{errors}"),
+        other => panic!("expected Blocked, got {other:?}"),
+    }
+    assert!(!s.context().has_compile, "a blocked job cannot be exported");
+}
+
+#[test]
+fn the_status_follows_a_job_from_nothing_to_do_through_compiling_to_ready() {
+    let mut s = state();
+    draw_rect(&mut s, p(10.0, 10.0), p(60.0, 50.0), 0);
+    s.tick(100);
+    assert!(s.wait_for_compile(Duration::from_secs(60)));
+    assert_eq!(s.job_status(), JobStatus::NothingToDo);
+
+    s.assign_operation(OpKind::Cut, BLADE, 200);
+    assert_eq!(
+        s.job_status(),
+        JobStatus::OutOfDate,
+        "the edit has not compiled yet"
+    );
+    s.tick(400);
+    assert_eq!(s.job_status(), JobStatus::Compiling);
+    assert!(s.wait_for_compile(Duration::from_secs(60)));
+    assert_eq!(s.job_status(), JobStatus::Ready);
+}
+
+#[test]
+fn a_block_that_cannot_be_previewed_offers_no_picture_inputs() {
+    let mut s = state();
+    assert!(s.set_machine("generic.grbl-pen-plotter"));
+    draw_rect(&mut s, p(10.0, 10.0), p(60.0, 50.0), 0);
+    s.assign_operation(OpKind::Foil, "generic.foil-transfer@1.0.0", 0);
+    s.tick(100);
+    assert!(s.wait_for_compile(Duration::from_secs(60)));
+    assert!(
+        s.preview_inputs().is_none(),
+        "the preview shows the real reason, not an endless Rendering"
+    );
+}
+
+#[test]
+fn the_speed_and_force_ranges_stop_at_what_the_machine_can_do() {
+    let mut entries = builtin_entries().expect("the built-in library loads");
+    let mut slow = entries
+        .iter()
+        .find_map(|e| match e {
+            ps_library::Entry::Profile(p) if p.id == "generic.cutter-small" => Some(p.clone()),
+            _ => None,
+        })
+        .expect("a generic cutter exists");
+    slow.id = "acme.slow".to_owned();
+    slow.max_speed_mm_s = 40.0;
+    slow.force.min_gf = 100.0;
+    slow.force.max_gf = 900.0;
+    entries.push(ps_library::Entry::Profile(slow));
+
+    let mut s = state_preferring("acme.slow");
+    s.replace_libraries(LibrarySnapshot::from_entries(entries));
+    assert_eq!(s.current_machine_id().as_deref(), Some("acme.slow"));
+    let row = cut_row(&mut s);
+    let params = s.row_params(row);
+    let speed = params.iter().find(|q| q.name == "speed").expect("speed");
+    assert!(
+        (speed.max - 40.0).abs() < 1e-9,
+        "the slider ends at the machine's top speed, not the tool's: {}",
+        speed.max
+    );
+    let force = params.iter().find(|q| q.name == "force").expect("force");
+    assert!((force.min - 100.0).abs() < 1e-9 && (force.max - 900.0).abs() < 1e-9);
+    assert!(
+        !s.set_row_param(row, "speed", 41.0, 0),
+        "a value the machine would clamp is refused"
+    );
 }

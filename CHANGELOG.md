@@ -7,6 +7,24 @@ commits (see `cliff.toml`).
 
 ## [Unreleased]
 
+### Added
+- A log file, `logs/plotter-studio.<date>.log` in the data folder (seven days kept). Set
+  `PLOTTER_STUDIO_LOG` to change the level, for example `debug`.
+
+### Changed
+- A library update that only raises a patch or minor version no longer puts a "version not found"
+  warning on every older project; an older or a different major version still warns.
+
+### Fixed
+- A machine from an installed plugin's library, saved as the default, was not selected at
+  start-up, so nothing could be prepared. It is chosen once the library loads, and a newer version
+  of the chosen machine is picked up.
+- With no machine chosen, or a job blocked by errors, the status bar, preview and Export tab now
+  say why (and how many errors) instead of "Job out of date", "Nothing to preview yet" or an endless
+  "Rendering…".
+- Speed and force sliders end at what the machine can do, not at the tool's own limit.
+- Start points are no longer drawn on shapes that have no operation.
+
 ## [0.1.0] - 2026-11-22
 
 ### Added

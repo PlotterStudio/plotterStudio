@@ -25,6 +25,12 @@ pub fn default_state_dir() -> Option<PathBuf> {
     default_root().map(|root| root.join("state"))
 }
 
+/// The folder for log files under the data folder.
+#[must_use]
+pub fn default_log_dir() -> Option<PathBuf> {
+    default_root().map(|root| root.join("logs"))
+}
+
 /// The folder for installed device plugins (`*.psdevice`) under the data folder.
 #[must_use]
 pub fn default_plugins_dir() -> Option<PathBuf> {

@@ -132,6 +132,13 @@ preview-step = Step { $step } of { $total }
 status-compiling = Compiling…
 status-ready = Job ready
 status-stale = Job out of date
+status-no-machine = Choose a machine (top bar) to prepare the job
+status-blocked = { $count ->
+    [one] { $count } error blocks the job. See the Export tab.
+   *[other] { $count } errors block the job. See the Export tab.
+}
+status-nothing-to-do = Give a shape an operation to prepare a job
+status-failed = The job could not be prepared: { $why }
 
 ## Operation kinds
 op-cut = Cut

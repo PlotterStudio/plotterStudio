@@ -6,9 +6,10 @@ use ps_geometry::Point;
 use ps_model::OpKind;
 use ps_render::{SegmentKind, segments, tool_position};
 
-use super::{App, selectable, to_screen};
+use super::{App, count_f64, selectable, to_screen};
 use crate::export::{LineClass, classify_gcode_line, gcode_for_mat};
 use crate::l10n::Arg;
+use crate::state::JobStatus;
 
 /// The colour a tool slot is drawn in on the toolpath view: the ink of a pen that has one chosen,
 /// otherwise the colour of the kind of work the tool does.
@@ -114,25 +115,34 @@ pub(super) fn recovery_window(ctx: &egui::Context, app: &mut App) {
     }
 }
 
+/// The words for where the job stands. The status bar, the preview and the Export tab all use
+/// them, so they never disagree about why there is no job.
+pub(super) fn job_status_text(app: &App) -> String {
+    match app.state.job_status() {
+        JobStatus::NoMachine => app.loc.tr("status-no-machine"),
+        JobStatus::Compiling => app.loc.tr("status-compiling"),
+        JobStatus::Failed(why) => app
+            .loc
+            .tr_args("status-failed", &[("why", Arg::Text(&why))]),
+        JobStatus::Blocked { errors } => app.loc.tr_args(
+            "status-blocked",
+            &[("count", Arg::Number(count_f64(errors)))],
+        ),
+        JobStatus::NothingToDo => app.loc.tr("status-nothing-to-do"),
+        JobStatus::OutOfDate => app.loc.tr("status-stale"),
+        JobStatus::Ready => app.loc.tr("status-ready"),
+    }
+}
+
 /// The compile state, bottom of the window.
 pub(super) fn status_bar(ui: &mut egui::Ui, app: &App) {
-    let key = if app.state.compile_running() {
-        "status-compiling"
-    } else if app.state.context().has_compile {
-        "status-ready"
-    } else {
-        "status-stale"
-    };
+    let ready = app.state.job_status() == JobStatus::Ready;
     let palette = crate::theme::Palette::of(ui.ctx().theme());
     ui.horizontal(|ui| {
-        let dot = if key == "status-ready" {
-            palette.ok
-        } else {
-            palette.orange
-        };
+        let dot = if ready { palette.ok } else { palette.orange };
         let (rect, _) = ui.allocate_exact_size(egui::vec2(8.0, 8.0), egui::Sense::hover());
         ui.painter().circle_filled(rect.center(), 3.5, dot);
-        ui.label(app.loc.tr(key));
+        ui.label(job_status_text(app));
         if let Some((_, kind)) = app.state.last_snap() {
             ui.separator();
             let what = app.loc.tr(&format!("snap-{}", snap_word(kind)));
@@ -204,9 +214,13 @@ fn gcode_view(ui: &mut egui::Ui, app: &mut App) {
     }
     let Some((_, lines)) = &app.gcode_cache else {
         let p = super::zest::palette(ui.ctx());
+        let words = match app.state.job_status() {
+            JobStatus::NothingToDo | JobStatus::Ready => app.loc.tr("export-gcode-none"),
+            _ => job_status_text(app),
+        };
         ui.label(super::zest::text(
             ui.ctx(),
-            app.loc.tr("export-gcode-none"),
+            words,
             13.0,
             super::zest::Weight::Regular,
             p.muted,
@@ -401,6 +415,11 @@ pub(super) fn draw_material(painter: &egui::Painter, app: &mut App, origin: egui
     let Some(generation) = app.state.compiled().map(|c| c.doc_generation) else {
         return false;
     };
+    // A job blocked by errors has nothing to draw; say nothing here and let the preview bar and
+    // status bar give the reason, rather than "Rendering…" for ever.
+    if !app.state.can_preview() {
+        return false;
+    }
     let mat = app.state.current_mat();
     let (w, h) = (mat.size.width.get(), mat.size.height.get());
     let wanted = ps_render::scale_for_zoom(app.state.viewport().zoom());
@@ -420,6 +439,9 @@ pub(super) fn draw_material(painter: &egui::Painter, app: &mut App, origin: egui
         view_hash(&app.preview_view),
     );
     take_finished(painter.ctx(), app);
+    if app.preview_failed == Some(key) {
+        return false;
+    }
     let out_of_date = app.preview_texture.as_ref().is_none_or(|t| t.key != key);
     if out_of_date && app.preview_worker.is_none() {
         start_picture(painter.ctx(), app, key, scale);
@@ -493,6 +515,8 @@ fn start_picture(ctx: &egui::Context, app: &mut App, key: (u64, usize, u32, u64)
         if let Some((preview, picture)) = build() {
             app.preview_cache = Some(PreviewCache { key: base, preview });
             install_picture(ctx, app, key, scale, &picture);
+        } else {
+            app.preview_failed = Some(key);
         }
         return;
     }
@@ -519,6 +543,8 @@ fn take_finished(ctx: &egui::Context, app: &mut App) {
                     preview,
                 });
                 install_picture(ctx, app, key, scale, &picture);
+            } else {
+                app.preview_failed = Some(key);
             }
             ctx.request_repaint();
         }

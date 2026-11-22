@@ -2238,3 +2238,105 @@ fn the_toolpath_is_drawn_in_the_ink_the_pen_was_given_and_the_work_colour_otherw
         "a plain pen is not drawn in the cut colour"
     );
 }
+
+// ---- why there is no job ----
+
+fn app_without_a_machine() -> App {
+    let mut a = App::new(
+        Settings {
+            default_machine: Some("acme.mill".to_owned()),
+            ..Settings::default()
+        },
+        "en",
+    );
+    a.preview_blocking = true;
+    a
+}
+
+/// A project the chosen machine cannot run: a foil tool on a pen plotter.
+fn blocked_app() -> App {
+    let mut a = app();
+    assert!(a.state.set_machine("generic.grbl-pen-plotter"));
+    draw_rect(&mut a, p(20.0, 20.0), p(80.0, 60.0));
+    assert!(
+        a.state
+            .assign_operation(OpKind::Foil, "generic.foil-transfer@1.0.0", 0)
+    );
+    a.state.tick(100);
+    assert!(a.state.wait_for_compile(Duration::from_secs(60)));
+    a
+}
+
+#[test]
+fn without_a_machine_the_status_bar_and_the_preview_say_to_choose_one() {
+    let mut a = app_without_a_machine();
+    a.state.run_command("mode.preview", 0);
+    let mut h = harness(a);
+    h.run();
+    assert!(
+        h.query_all_by_label("Choose a machine (top bar) to prepare the job")
+            .count()
+            >= 1
+    );
+    assert!(
+        h.query_by_label("Nothing to preview yet").is_none(),
+        "the vague message is gone"
+    );
+}
+
+#[test]
+fn a_blocked_job_says_how_many_errors_and_never_shows_rendering() {
+    let mut a = blocked_app();
+    a.preview_material = true;
+    a.state.run_command("mode.preview", 0);
+    let mut h = harness(a);
+    h.run();
+    assert!(
+        h.query_all_by_label_contains("blocks the job. See the Export tab")
+            .count()
+            >= 1,
+        "the single error is named: {:?}",
+        h.state().state.job_status()
+    );
+    assert!(
+        h.query_by_label("Job out of date").is_none(),
+        "a finished compile with errors is not out of date"
+    );
+    assert!(
+        h.query_by_label("Rendering…").is_none(),
+        "there is nothing to render, and the screen must not claim otherwise"
+    );
+}
+
+// ---- start points ----
+
+#[test]
+fn a_shape_without_an_operation_shows_no_start_point_and_one_with_an_operation_does() {
+    let mut a = app();
+    draw_rect(&mut a, p(20.0, 20.0), p(80.0, 60.0));
+    let first_path = |a: &App| {
+        a.state
+            .current_mat()
+            .objects
+            .values()
+            .next()
+            .expect("the rectangle")
+            .paths[0]
+            .clone()
+    };
+    assert!(
+        !start_is_meaningful(&first_path(&a)),
+        "nothing is done along an undecorated shape"
+    );
+    assert!(
+        a.state
+            .assign_operation(OpKind::Cut, "generic.drag-blade@1.0.0", 0)
+    );
+    assert!(start_is_meaningful(&first_path(&a)));
+    let row = a.state.operation_rows()[0].id;
+    assert!(a.state.remove_row(row, 10));
+    assert!(
+        !start_is_meaningful(&first_path(&a)),
+        "deleting the operation takes the start point away"
+    );
+}

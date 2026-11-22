@@ -21,7 +21,8 @@ pub use builtin::{entries as builtin_entries, install_into as install_builtin};
 pub use calibration::{Calibration, Xy, file_name as calibration_file_name};
 pub use conflict::{Action, Choice, Resolution, action, keep_both_id, resolve};
 pub use dirs::{
-    default_plugins_dir, default_root, default_settings_path, default_state_dir, open_at,
+    default_log_dir, default_plugins_dir, default_root, default_settings_path, default_state_dir,
+    open_at,
 };
 pub use index::{INDEX_SCHEMA, Index, IndexEntry, Query, sha256_hex};
 pub use migrate::{CURRENT_SCHEMA, MigrateError, Step, migrate_with, to_current};

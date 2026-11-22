@@ -1,8 +1,9 @@
 //! A read-only, cheaply shared view of the effective library.
 //!
 //! The compiler and the UI resolve references against a [`LibrarySnapshot`]. A reference to a
-//! version that is not installed resolves to the newest installed version with a warning; a
-//! reference to an id that is not installed is an error that blocks export.
+//! version that is not installed resolves to the newest installed version, with a warning unless
+//! that version is a newer, compatible one; a reference to an id that is not installed is an error
+//! that blocks export.
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -67,17 +68,33 @@ fn resolve_in<T>(
             warning: None,
         });
     }
-    let (_, newest) = versions
+    let (version, newest) = versions
         .iter()
         .next_back()
         .ok_or_else(|| ResolveError::Missing(wanted.clone()))?;
-    Ok(Resolved {
-        item: Arc::clone(newest),
-        warning: Some(ResolveWarning::VersionSubstituted {
+    // A newer version that is compatible stands in quietly: a library update should not put a
+    // warning on every project made before it.
+    let warning = if is_compatible_update(wanted.version(), version) {
+        None
+    } else {
+        Some(ResolveWarning::VersionSubstituted {
             wanted: wanted.clone(),
             used: lib_ref_of(newest),
-        }),
+        })
+    };
+    Ok(Resolved {
+        item: Arc::clone(newest),
+        warning,
     })
+}
+
+/// Whether `used` is a newer version that should work wherever `wanted` did: the same major
+/// version, or for a 0.x entry the same minor version, since 0.x makes no promise across minors.
+fn is_compatible_update(wanted: &Version, used: &Version) -> bool {
+    if used <= wanted || used.major != wanted.major {
+        return false;
+    }
+    wanted.major != 0 || used.minor == wanted.minor
 }
 
 fn newest<T>(map: &Versions<T>) -> Vec<Arc<T>> {

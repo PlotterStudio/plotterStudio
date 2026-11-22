@@ -32,8 +32,11 @@ name. Namespacing by dot is a convention, not a rule: built-ins use `generic.…
 whenever you change a definition you have shared with others.
 
 A project refers to an entry as `id@version` (a `LibRef`). If that exact version is not
-installed, the newest installed version of the same id is used and the user is warned; if no
-version of the id is installed, export is blocked.
+installed, the newest installed version of the same id is used. The user is warned unless that
+version is a newer, compatible one (the same major version; for a `0.x` entry, the same minor
+version), so a patch or minor update does not put a warning on every older project. An older
+version, or a different major version, always warns. If no version of the id is installed, export
+is blocked.
 
 ## Where files live
 
