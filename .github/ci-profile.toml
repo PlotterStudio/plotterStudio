@@ -1,0 +1,68 @@
+# Extra cargo configuration for the CI test jobs: `cargo test --config .github/ci-profile.toml`.
+#
+# Optimises only the WebAssembly compiler and runtime. Unoptimised, compiling a plugin component
+# is slow enough on a small CI runner to blow through the plugin host's call deadlines, which the
+# tests exercise for real. Optimising every dependency instead would double the cold build time.
+#
+# It is not in Cargo.toml because, with rustc 1.100 on Windows, an optimised dependency profile
+# was seen to crash the compiler in check/clippy runs.
+
+[profile.dev.package.cranelift-assembler-x64]
+opt-level = 2
+
+[profile.dev.package.cranelift-bforest]
+opt-level = 2
+
+[profile.dev.package.cranelift-bitset]
+opt-level = 2
+
+[profile.dev.package.cranelift-codegen]
+opt-level = 2
+
+[profile.dev.package.cranelift-control]
+opt-level = 2
+
+[profile.dev.package.cranelift-entity]
+opt-level = 2
+
+[profile.dev.package.cranelift-frontend]
+opt-level = 2
+
+[profile.dev.package.cranelift-native]
+opt-level = 2
+
+[profile.dev.package.regalloc2]
+opt-level = 2
+
+[profile.dev.package.wasmparser]
+opt-level = 2
+
+[profile.dev.package.gimli]
+opt-level = 2
+
+[profile.dev.package.object]
+opt-level = 2
+
+[profile.dev.package.wasmtime]
+opt-level = 2
+
+[profile.dev.package.wasmtime-environ]
+opt-level = 2
+
+[profile.dev.package.wasmtime-internal-core]
+opt-level = 2
+
+[profile.dev.package.wasmtime-internal-cranelift]
+opt-level = 2
+
+[profile.dev.package.wasmtime-internal-fiber]
+opt-level = 2
+
+[profile.dev.package.wasmtime-internal-unwinder]
+opt-level = 2
+
+[profile.dev.package.wasmtime-wasi]
+opt-level = 2
+
+[profile.dev.package.wasmtime-wasi-io]
+opt-level = 2

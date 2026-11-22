@@ -62,11 +62,8 @@ jobs:
       - run: rustup target add wasm32-wasip2
       - uses: Swatinem/rust-cache@v2
       # Golden files are compared byte for byte on all three systems.
-      # Dependencies are built optimised for the tests: unoptimised wasmtime is slow enough on a
-      # small runner to blow through the plugin host's call deadlines, which the tests exercise
-      # for real. (Done here, not in Cargo.toml: with rustc 1.100 an optimised dependency profile
-      # crashes the compiler in check and clippy runs.)
-      - run: cargo test --workspace --locked --config 'profile.dev.package."*".opt-level=2'
+      # The WebAssembly compiler is built optimised for the tests; see the file for why.
+      - run: cargo test --workspace --locked --config .github/ci-profile.toml
 
   ui:
     name: UI and rendering (software Vulkan)
@@ -83,7 +80,7 @@ jobs:
       - run: rustup target add wasm32-wasip2
       - uses: Swatinem/rust-cache@v2
       # egui_kittest and the offscreen render tests run against the software Vulkan device.
-      - run: cargo test -p ps-app -p ps-render --locked --config 'profile.dev.package."*".opt-level=2'
+      - run: cargo test -p ps-app -p ps-render --locked --config .github/ci-profile.toml
 
   build-check:
     name: build check (Intel macOS cross-build, MSRV)
