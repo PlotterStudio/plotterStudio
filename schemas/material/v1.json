@@ -1,0 +1,181 @@
+{
+  "$defs": {
+    "Preset": {
+      "description": "A material's settings for one tool and operation, with optional per-machine overrides.",
+      "properties": {
+        "machines": {
+          "additionalProperties": {
+            "additionalProperties": {
+              "format": "double",
+              "type": "number"
+            },
+            "type": "object"
+          },
+          "description": "Values that replace the generic ones on a specific machine, keyed by machine id.",
+          "type": "object"
+        },
+        "operation": {
+          "description": "The operation, such as `cut`.",
+          "type": "string"
+        },
+        "params": {
+          "additionalProperties": {
+            "format": "double",
+            "type": "number"
+          },
+          "description": "Parameter values (force, speed, passes …).",
+          "type": "object"
+        },
+        "tool": {
+          "description": "The tool id.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "tool",
+        "operation",
+        "params"
+      ],
+      "type": "object"
+    },
+    "Textures": {
+      "description": "Texture maps of a material.",
+      "properties": {
+        "base_color": {
+          "description": "Base colour map.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "height": {
+          "description": "Height map.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "metallic": {
+          "description": "Metallic map.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "normal": {
+          "description": "Normal map.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "roughness": {
+          "description": "Roughness map.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "scale_mm": {
+          "description": "Physical size of one texture tile in mm.",
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "scale_mm"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://plotter-studio.github.io/schemas/material/v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "A material definition with its presets.",
+  "properties": {
+    "brand": {
+      "description": "Brand.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "category": {
+      "description": "Category, such as `paper` or `vinyl`.",
+      "type": "string"
+    },
+    "grip": {
+      "default": [],
+      "description": "Mat grips it works with.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "id": {
+      "description": "Stable id.",
+      "type": "string"
+    },
+    "license": {
+      "description": "Licence of this definition.",
+      "type": "string"
+    },
+    "name": {
+      "description": "Display name.",
+      "type": "string"
+    },
+    "names": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Translated display names by language code.",
+      "type": "object"
+    },
+    "presets": {
+      "default": [],
+      "description": "Settings per tool and operation.",
+      "items": {
+        "$ref": "#/$defs/Preset"
+      },
+      "type": "array"
+    },
+    "schema_version": {
+      "description": "Layout version of this file.",
+      "format": "uint32",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "textures": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Textures"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Preview textures."
+    },
+    "thickness_mm": {
+      "description": "Thickness in mm.",
+      "format": "double",
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "version": {
+      "description": "Semantic version.",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "id",
+    "version",
+    "name",
+    "category",
+    "license"
+  ],
+  "title": "Material",
+  "type": "object"
+}

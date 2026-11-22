@@ -1,0 +1,29 @@
+[package]
+name = "ps-nest"
+description = "Plotter Studio auto-nesting: places object outlines on mats using the jagua-rs collision engine."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+# The crate's own code is MIT; it depends on jagua-rs (MPL-2.0, file-level copyleft, used unchanged).
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+jagua-rs.workspace = true
+libm.workspace = true
+ps-core.workspace = true
+ps-geometry.workspace = true
+rand.workspace = true
+rand_chacha.workspace = true
+serde.workspace = true
+
+[dev-dependencies]
+criterion.workspace = true
+proptest.workspace = true
+
+[[bench]]
+name = "budget"
+harness = false
+
+[lints]
+workspace = true

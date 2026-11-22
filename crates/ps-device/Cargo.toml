@@ -1,0 +1,44 @@
+[package]
+name = "ps-device"
+description = "Plotter Studio device host: drivers, flow-controlled job streaming, machine handles, permissions."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+arc-swap.workspace = true
+async-trait.workspace = true
+ps-core.workspace = true
+ps-device-sdk.workspace = true
+ps-gcode.workspace = true
+ps-job.workspace = true
+serde.workspace = true
+futures.workspace = true
+nusb.workspace = true
+btleplug.workspace = true
+mdns-sd.workspace = true
+serial2.workspace = true
+serialport.workspace = true
+rustls.workspace = true
+sha2.workspace = true
+webpki-roots.workspace = true
+tungstenite.workspace = true
+serde_json.workspace = true
+tempfile.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["rt", "sync", "time", "macros"] }
+tracing.workspace = true
+uuid.workspace = true
+wasmtime.workspace = true
+zip.workspace = true
+wasmtime-wasi.workspace = true
+
+[dev-dependencies]
+rcgen.workspace = true
+wit-parser.workspace = true
+tokio = { workspace = true, features = ["rt", "sync", "time", "macros", "test-util"] }
+
+[lints]
+workspace = true

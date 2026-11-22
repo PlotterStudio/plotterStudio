@@ -1,0 +1,457 @@
+{
+  "$defs": {
+    "ForceRange": {
+      "description": "A machine's force range and the mapping to its own units.",
+      "properties": {
+        "max_gf": {
+          "description": "Highest force in grams-force.",
+          "format": "double",
+          "type": "number"
+        },
+        "min_gf": {
+          "description": "Lowest force in grams-force.",
+          "format": "double",
+          "type": "number"
+        },
+        "units_per_gf": {
+          "description": "Machine units per gram-force.",
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "min_gf",
+        "max_gf",
+        "units_per_gf"
+      ],
+      "type": "object"
+    },
+    "GcodeSettings": {
+      "description": "The output dialect choices a machine may need.",
+      "properties": {
+        "arcs": {
+          "description": "Emit G2/G3 arcs.",
+          "type": "boolean"
+        },
+        "chord_tolerance_mm": {
+          "description": "Chord tolerance when arcs are off, in mm.",
+          "format": "double",
+          "type": "number"
+        },
+        "dialect": {
+          "description": "The dialect, such as `ps-gcode/1`.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "dialect",
+        "arcs",
+        "chord_tolerance_mm"
+      ],
+      "type": "object"
+    },
+    "Holder": {
+      "description": "A tool holder of a machine.",
+      "properties": {
+        "accepts": {
+          "description": "The tool families it accepts.",
+          "items": {
+            "$ref": "#/$defs/ToolFamily"
+          },
+          "type": "array"
+        },
+        "id": {
+          "description": "Holder id, such as `generic.holder-a`.",
+          "type": "string"
+        },
+        "label": {
+          "description": "Display name.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "accepts"
+      ],
+      "type": "object"
+    },
+    "MatSizeSpec": {
+      "description": "A named mat size.",
+      "properties": {
+        "height_mm": {
+          "description": "Height in mm.",
+          "format": "double",
+          "type": "number"
+        },
+        "name": {
+          "description": "Display name, such as `12x12 in`.",
+          "type": "string"
+        },
+        "width_mm": {
+          "description": "Width in mm.",
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "name",
+        "width_mm",
+        "height_mm"
+      ],
+      "type": "object"
+    },
+    "Origin": {
+      "description": "The corner a machine measures coordinates from.",
+      "oneOf": [
+        {
+          "const": "top_left",
+          "description": "Top left (the convention of most cutting plotters).",
+          "type": "string"
+        },
+        {
+          "const": "top_right",
+          "description": "Top right.",
+          "type": "string"
+        },
+        {
+          "const": "bottom_left",
+          "description": "Bottom left.",
+          "type": "string"
+        },
+        {
+          "const": "bottom_right",
+          "description": "Bottom right.",
+          "type": "string"
+        }
+      ]
+    },
+    "RectMm": {
+      "description": "A rectangle on the mat.",
+      "properties": {
+        "height_mm": {
+          "description": "Height.",
+          "format": "double",
+          "type": "number"
+        },
+        "width_mm": {
+          "description": "Width.",
+          "format": "double",
+          "type": "number"
+        },
+        "x_mm": {
+          "description": "Left edge.",
+          "format": "double",
+          "type": "number"
+        },
+        "y_mm": {
+          "description": "Top edge.",
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "x_mm",
+        "y_mm",
+        "width_mm",
+        "height_mm"
+      ],
+      "type": "object"
+    },
+    "Roll": {
+      "description": "A roll-fed machine's limits (matless cutting).",
+      "properties": {
+        "max_length_mm": {
+          "description": "Longest cut.",
+          "format": "double",
+          "type": "number"
+        },
+        "width_mm": {
+          "description": "Roll width.",
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "width_mm",
+        "max_length_mm"
+      ],
+      "type": "object"
+    },
+    "Size": {
+      "description": "A width and height in mm.",
+      "properties": {
+        "height_mm": {
+          "description": "Height in mm.",
+          "format": "double",
+          "type": "number"
+        },
+        "width_mm": {
+          "description": "Width in mm.",
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "width_mm",
+        "height_mm"
+      ],
+      "type": "object"
+    },
+    "ToolFamily": {
+      "description": "The kind of tool.",
+      "oneOf": [
+        {
+          "const": "blade",
+          "description": "A cutting blade.",
+          "type": "string"
+        },
+        {
+          "const": "pen",
+          "description": "A pen or marker.",
+          "type": "string"
+        },
+        {
+          "const": "foil",
+          "description": "A foil transfer tool.",
+          "type": "string"
+        },
+        {
+          "const": "scoring",
+          "description": "A scoring stylus or wheel.",
+          "type": "string"
+        },
+        {
+          "const": "emboss",
+          "description": "An embossing tool.",
+          "type": "string"
+        },
+        {
+          "const": "engrave",
+          "description": "An engraving tool.",
+          "type": "string"
+        },
+        {
+          "const": "perforate",
+          "description": "A perforating blade.",
+          "type": "string"
+        },
+        {
+          "const": "wheel",
+          "description": "A wheel tool.",
+          "type": "string"
+        },
+        {
+          "const": "heated",
+          "description": "A heated tool.",
+          "type": "string"
+        },
+        {
+          "const": "other",
+          "description": "Anything else.",
+          "type": "string"
+        }
+      ]
+    }
+  },
+  "$id": "https://plotter-studio.github.io/schemas/profile/v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "A machine profile.",
+  "properties": {
+    "accel_by_speed": {
+      "description": "How the acceleration follows the speed, as `(speed mm/s, acceleration mm/s²)` points in\nascending speed, for a machine that accelerates harder when it goes faster. Empty means\n[`MachineProfile::max_accel_mm_s2`] at every speed.",
+      "items": {
+        "maxItems": 2,
+        "minItems": 2,
+        "prefixItems": [
+          {
+            "format": "double",
+            "type": "number"
+          },
+          {
+            "format": "double",
+            "type": "number"
+          }
+        ],
+        "type": "array"
+      },
+      "type": "array"
+    },
+    "arcs": {
+      "description": "The machine supports G2/G3 arcs.",
+      "type": "boolean"
+    },
+    "fill_turn_step_deg": {
+      "description": "Where set, the hairpins that join the rows of a fill are drawn as semicircles whose chords\nturn by at most this many degrees, for a machine that slows at sharp corners.",
+      "format": "double",
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "force": {
+      "$ref": "#/$defs/ForceRange",
+      "description": "Force range."
+    },
+    "gcode": {
+      "$ref": "#/$defs/GcodeSettings",
+      "description": "G-code dialect settings."
+    },
+    "heated": {
+      "description": "The machine supports heated tools.",
+      "type": "boolean"
+    },
+    "heating_rate_c_s": {
+      "description": "Heating rate in °C per second.",
+      "format": "double",
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "holders": {
+      "description": "The tool holders.",
+      "items": {
+        "$ref": "#/$defs/Holder"
+      },
+      "type": "array"
+    },
+    "id": {
+      "description": "Stable id.",
+      "type": "string"
+    },
+    "junction_deviation_mm": {
+      "description": "Junction deviation for the look-ahead planner, in mm.",
+      "format": "double",
+      "type": "number"
+    },
+    "keep_outs": {
+      "description": "Regions the tools must not enter.",
+      "items": {
+        "$ref": "#/$defs/RectMm"
+      },
+      "type": "array"
+    },
+    "license": {
+      "description": "Licence of this definition.",
+      "type": "string"
+    },
+    "mat_sizes": {
+      "description": "Mat sizes the machine takes.",
+      "items": {
+        "$ref": "#/$defs/MatSizeSpec"
+      },
+      "type": "array"
+    },
+    "max_accel_mm_s2": {
+      "description": "Acceleration in mm/s², at the machine's top speed.",
+      "format": "double",
+      "type": "number"
+    },
+    "max_speed_mm_s": {
+      "description": "Top speed while drawing, in mm/s. A cut's feed is held to this.",
+      "format": "double",
+      "type": "number"
+    },
+    "max_travel_speed_mm_s": {
+      "description": "Top speed of moves with the tool up, in mm/s; [`MachineProfile::max_speed_mm_s`] when\nabsent. For a machine that travels at a different speed than it draws.",
+      "format": "double",
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "name": {
+      "description": "Display name.",
+      "type": "string"
+    },
+    "origin": {
+      "$ref": "#/$defs/Origin",
+      "description": "Where coordinates start."
+    },
+    "roll": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Roll"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Roll limits, for matless machines."
+    },
+    "schema_version": {
+      "description": "Layout version of this file.",
+      "format": "uint32",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "tangential_axis": {
+      "description": "The machine has a tangential (A) axis.",
+      "type": "boolean"
+    },
+    "tool_down_ms": {
+      "description": "Time to lower the tool.",
+      "format": "uint32",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "tool_up_ms": {
+      "description": "Time to raise the tool.",
+      "format": "uint32",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "vector_ms_by_speed": {
+      "description": "The time the machine spends on each vector it draws, as `(speed mm/s, milliseconds)`\npoints in ascending speed, for a machine whose time depends on how many vectors it is given\nand not only on how far it moves. Empty means no such cost.",
+      "items": {
+        "maxItems": 2,
+        "minItems": 2,
+        "prefixItems": [
+          {
+            "format": "double",
+            "type": "number"
+          },
+          {
+            "format": "double",
+            "type": "number"
+          }
+        ],
+        "type": "array"
+      },
+      "type": "array"
+    },
+    "version": {
+      "description": "Semantic version.",
+      "type": "string"
+    },
+    "work_area": {
+      "$ref": "#/$defs/Size",
+      "description": "The cuttable area."
+    }
+  },
+  "required": [
+    "schema_version",
+    "id",
+    "version",
+    "name",
+    "work_area",
+    "mat_sizes",
+    "origin",
+    "keep_outs",
+    "holders",
+    "force",
+    "max_speed_mm_s",
+    "max_accel_mm_s2",
+    "junction_deviation_mm",
+    "tool_up_ms",
+    "tool_down_ms",
+    "arcs",
+    "tangential_axis",
+    "heated",
+    "gcode",
+    "license"
+  ],
+  "title": "MachineProfile",
+  "type": "object"
+}

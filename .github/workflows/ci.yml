@@ -1,0 +1,96 @@
+name: CI
+
+# Every push to main and every pull request.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: -D warnings
+  RUSTDOCFLAGS: -D warnings
+
+jobs:
+  lint:
+    name: lint (formatting, clippy, deny, boundaries, schemas)
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: System packages (build-time)
+        run: >
+          sudo apt-get update && sudo apt-get install -y libudev-dev pkg-config
+          libxkbcommon-dev libwayland-dev libx11-dev libxcursor-dev libxrandr-dev libxi-dev
+          libvulkan-dev
+      # Install the toolchain pinned in rust-toolchain.toml explicitly.
+      - run: rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --all --check
+      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - run: cargo doc --workspace --no-deps --locked
+      - uses: taiki-e/install-action@cargo-deny
+      - run: cargo deny check
+      - run: cargo install cargo-machete --locked
+      - run: cargo machete
+      - run: cargo xtask check-boundaries
+      - run: cargo xtask check-schemas
+      - run: cargo xtask l10n-check
+      - run: cargo xtask licenses
+
+  test:
+    name: test (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, windows-2022, macos-14]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: System packages (build-time)
+        if: runner.os == 'Linux'
+        run: >
+          sudo apt-get update && sudo apt-get install -y libudev-dev pkg-config
+          libxkbcommon-dev libwayland-dev libx11-dev libxcursor-dev libxrandr-dev libxi-dev
+          libvulkan-dev
+      - run: rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+      # Golden files are compared byte for byte on all three systems.
+      - run: cargo test --workspace --locked
+
+  ui:
+    name: UI and rendering (software Vulkan)
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: System packages and Mesa lavapipe
+        run: >
+          sudo apt-get update && sudo apt-get install -y libudev-dev pkg-config
+          libxkbcommon-dev libwayland-dev libx11-dev libxcursor-dev libxrandr-dev libxi-dev
+          libvulkan-dev mesa-vulkan-drivers
+      - run: rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+      # egui_kittest and the offscreen render tests run against the software Vulkan device.
+      - run: cargo test -p ps-app -p ps-render --locked
+
+  build-check:
+    name: build check (Intel macOS cross-build, MSRV)
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup toolchain install
+      - run: rustup target add x86_64-apple-darwin
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --workspace --locked --target x86_64-apple-darwin
+      - run: rustup toolchain install 1.88 --profile minimal
+      - run: cargo +1.88 check --workspace --all-targets --locked
+
+  plugins:
+    name: device plugins (wasm32-wasip2)
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup toolchain install
+      - run: rustup target add wasm32-wasip2
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build -p grbl-plugin --target wasm32-wasip2 --release --locked
+        if: hashFiles('plugins/grbl/Cargo.toml') != ''

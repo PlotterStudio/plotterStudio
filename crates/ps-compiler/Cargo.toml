@@ -1,0 +1,29 @@
+[package]
+name = "ps-compiler"
+description = "Plotter Studio job compiler: document + libraries + machine profile to a deterministic job IR."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+libm.workspace = true
+lru.workspace = true
+rayon.workspace = true
+rustc-hash.workspace = true
+ps-core.workspace = true
+ps-geometry.workspace = true
+ps-job.workspace = true
+ps-library.workspace = true
+ps-model.workspace = true
+rstar.workspace = true
+simplify-polyline.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+proptest.workspace = true
+
+[lints]
+workspace = true

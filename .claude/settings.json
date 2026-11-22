@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(cargo build *)",
+      "Bash(cargo check *)",
+      "Bash(cargo test *)",
+      "Bash(cargo clippy *)",
+      "Bash(cargo fmt *)",
+      "Bash(cargo doc *)",
+      "Bash(cargo tree *)",
+      "Bash(cargo metadata *)",
+      "Bash(cargo search *)",
+      "Bash(cargo deny *)",
+      "Bash(cargo lint*)",
+      "Bash(cargo fmt-check*)",
+      "Bash(cargo test-all*)",
+      "Bash(cargo docs*)",
+      "Bash(rustfmt *)",
+      "PowerShell(cargo build *)",
+      "PowerShell(cargo check *)",
+      "PowerShell(cargo test *)",
+      "PowerShell(cargo clippy *)",
+      "PowerShell(cargo fmt *)",
+      "PowerShell(cargo doc *)",
+      "PowerShell(cargo lint*)",
+      "PowerShell(cargo fmt-check*)",
+      "PowerShell(cargo test-all*)",
+      "PowerShell(cargo docs*)",
+      "Bash(cargo add*)",
+      "Bash(cargo info*)",
+      "Bash(cargo update*)",
+      "Bash(cargo clean*)",
+      "Bash(cargo bench*)",
+      "Bash(cargo fetch*)",
+      "Bash(cargo tree*)",
+      "Bash(cargo package*)",
+      "Bash(cargo vendor*)",
+      "Bash(cargo version*)",
+      "Bash(cargo --version*)",
+      "Bash(cargo run -p ps-*)",
+      "Bash(cargo run --package ps-*)",
+      "PowerShell(cargo add*)",
+      "PowerShell(cargo info*)",
+      "PowerShell(cargo update*)",
+      "PowerShell(cargo clean*)",
+      "PowerShell(cargo bench*)",
+      "PowerShell(cargo fetch*)",
+      "PowerShell(cargo tree*)",
+      "PowerShell(cargo package*)",
+      "PowerShell(cargo vendor*)",
+      "PowerShell(cargo version*)",
+      "PowerShell(cargo --version*)",
+      "PowerShell(cargo run -p ps-*)",
+      "PowerShell(cargo run --package ps-*)"
+    ],
+    "ask": [
+      "Bash(cargo run)",
+      "Bash(cargo run *--example*)",
+      "Bash(cargo run *--bin*)",
+      "PowerShell(cargo run)",
+      "PowerShell(cargo run *--example*)",
+      "PowerShell(cargo run *--bin*)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -r '.tool_response.filePath // .tool_input.file_path // empty' | tr -d '\\r' | { read -r f; case \"$f\" in *.rs) rustfmt --quiet \"$f\" ;; esac; } 2>/dev/null || true",
+            "timeout": 30,
+            "statusMessage": "rustfmt"
+          }
+        ]
+      }
+    ]
+  },
+  "enabledPlugins": {
+    "rust-analyzer-lsp@claude-plugins-official": true
+  }
+}

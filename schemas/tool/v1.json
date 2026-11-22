@@ -1,0 +1,326 @@
+{
+  "$defs": {
+    "Colour": {
+      "description": "A named colour.",
+      "properties": {
+        "hex": {
+          "description": "`#RRGGBB`.",
+          "type": "string"
+        },
+        "name": {
+          "description": "A display name.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "hex",
+        "name"
+      ],
+      "type": "object"
+    },
+    "DriveType": {
+      "description": "How a tool follows a path.",
+      "oneOf": [
+        {
+          "const": "drag",
+          "description": "A swivel blade dragged behind the holder.",
+          "type": "string"
+        },
+        {
+          "const": "fixed_point",
+          "description": "A tool with no direction, such as a pen.",
+          "type": "string"
+        },
+        {
+          "const": "tangential",
+          "description": "A driven blade that turns to follow the path.",
+          "type": "string"
+        },
+        {
+          "const": "rolling",
+          "description": "A rolling wheel.",
+          "type": "string"
+        },
+        {
+          "const": "heated",
+          "description": "A heated tip.",
+          "type": "string"
+        }
+      ]
+    },
+    "Geometry": {
+      "description": "Physical dimensions of a tool.",
+      "properties": {
+        "blade_offset_mm": {
+          "description": "Distance from the swivel axis to the blade tip.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "min_feature_mm": {
+          "description": "The smallest feature the tool can make.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "tip_width_mm": {
+          "description": "Width of a pen's line.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "wheel_radius_mm": {
+          "description": "Radius of a wheel tool.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "ParamSpec": {
+      "description": "The range and default of one tool parameter.",
+      "properties": {
+        "default": {
+          "description": "Value used when nothing overrides it.",
+          "format": "double",
+          "type": "number"
+        },
+        "max": {
+          "description": "Largest allowed value.",
+          "format": "double",
+          "type": "number"
+        },
+        "min": {
+          "description": "Smallest allowed value.",
+          "format": "double",
+          "type": "number"
+        },
+        "type": {
+          "$ref": "#/$defs/ParamType",
+          "description": "Number or integer."
+        },
+        "unit": {
+          "description": "The unit, such as `gf` or `mm/s`.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "type",
+        "min",
+        "max",
+        "default"
+      ],
+      "type": "object"
+    },
+    "ParamType": {
+      "description": "The type of a tool parameter.",
+      "oneOf": [
+        {
+          "const": "number",
+          "description": "Any real number.",
+          "type": "string"
+        },
+        {
+          "const": "integer",
+          "description": "A whole number.",
+          "type": "string"
+        }
+      ]
+    },
+    "PenInfo": {
+      "description": "Extra fields of a pen.",
+      "properties": {
+        "colour": {
+          "$ref": "#/$defs/Colour",
+          "description": "The ink colour."
+        },
+        "owned": {
+          "description": "Set in the user's overlay when the pen is in the pen inventory.",
+          "type": "boolean"
+        },
+        "tip_type": {
+          "description": "The tip type, such as `fibre` or `ballpoint`.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "colour"
+      ],
+      "type": "object"
+    },
+    "Render": {
+      "description": "How the tool is drawn in the preview.",
+      "properties": {
+        "effect": {
+          "description": "The effect name, such as `cut` or `ink`.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "effect"
+      ],
+      "type": "object"
+    },
+    "ToolFamily": {
+      "description": "The kind of tool.",
+      "oneOf": [
+        {
+          "const": "blade",
+          "description": "A cutting blade.",
+          "type": "string"
+        },
+        {
+          "const": "pen",
+          "description": "A pen or marker.",
+          "type": "string"
+        },
+        {
+          "const": "foil",
+          "description": "A foil transfer tool.",
+          "type": "string"
+        },
+        {
+          "const": "scoring",
+          "description": "A scoring stylus or wheel.",
+          "type": "string"
+        },
+        {
+          "const": "emboss",
+          "description": "An embossing tool.",
+          "type": "string"
+        },
+        {
+          "const": "engrave",
+          "description": "An engraving tool.",
+          "type": "string"
+        },
+        {
+          "const": "perforate",
+          "description": "A perforating blade.",
+          "type": "string"
+        },
+        {
+          "const": "wheel",
+          "description": "A wheel tool.",
+          "type": "string"
+        },
+        {
+          "const": "heated",
+          "description": "A heated tool.",
+          "type": "string"
+        },
+        {
+          "const": "other",
+          "description": "Anything else.",
+          "type": "string"
+        }
+      ]
+    }
+  },
+  "$id": "https://plotter-studio.github.io/schemas/tool/v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "A tool definition.",
+  "properties": {
+    "drive": {
+      "$ref": "#/$defs/DriveType",
+      "description": "How it follows a path."
+    },
+    "family": {
+      "$ref": "#/$defs/ToolFamily",
+      "description": "The kind of tool."
+    },
+    "geometry": {
+      "$ref": "#/$defs/Geometry",
+      "default": {},
+      "description": "Physical dimensions."
+    },
+    "holders": {
+      "description": "Holder ids it fits.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "id": {
+      "description": "Stable id, such as `generic.drag-blade`.",
+      "type": "string"
+    },
+    "license": {
+      "description": "Licence of this definition.",
+      "type": "string"
+    },
+    "name": {
+      "description": "Display name.",
+      "type": "string"
+    },
+    "operations": {
+      "description": "Operations it can perform, such as `cut` or `draw`.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "parameters": {
+      "additionalProperties": {
+        "$ref": "#/$defs/ParamSpec"
+      },
+      "description": "Tunable parameters.",
+      "type": "object"
+    },
+    "pen": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/PenInfo"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Pen details, for pens."
+    },
+    "render": {
+      "$ref": "#/$defs/Render",
+      "description": "Preview style."
+    },
+    "schema_version": {
+      "description": "Layout version of this file.",
+      "format": "uint32",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "version": {
+      "description": "Semantic version of this definition.",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "id",
+    "version",
+    "name",
+    "family",
+    "drive",
+    "operations",
+    "holders",
+    "parameters",
+    "render",
+    "license"
+  ],
+  "title": "Tool",
+  "type": "object"
+}

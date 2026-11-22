@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "version": "1.0.0",
+  "license": "CC0-1.0",
+  "id": "generic.rotary-wheel",
+  "name": "Rotary cutting wheel",
+  "family": "blade",
+  "drive": "rolling",
+  "geometry": {
+    "wheel_radius_mm": 2.0
+  },
+  "operations": [
+    "cut",
+    "kiss_cut"
+  ],
+  "holders": [
+    "generic.holder-b"
+  ],
+  "parameters": {
+    "force": {
+      "type": "number",
+      "unit": "gf",
+      "min": 50,
+      "max": 400,
+      "default": 200
+    },
+    "speed": {
+      "type": "number",
+      "unit": "mm/s",
+      "min": 5,
+      "max": 200,
+      "default": 60
+    }
+  },
+  "render": {
+    "effect": "cut"
+  }
+}

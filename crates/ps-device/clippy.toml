@@ -1,0 +1,48 @@
+# Crate-local clippy configuration (it replaces the workspace clippy.toml for this crate, so the
+# test allowances are repeated here).
+#
+# Determinism rules for the compile path: no hash-ordered collections, and no platform
+# maths. `sqrt`, `round`, `floor`, `ceil`, `rem_euclid` and `mul_add` are exact IEEE operations
+# and stay allowed; the transcendental functions below can differ in the last bit between
+# operating systems, so geometry code calls `libm` instead.
+
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true
+allow-panic-in-tests = true
+allow-print-in-tests = true
+allow-dbg-in-tests = true
+
+disallowed-types = [
+    { path = "std::collections::HashMap", reason = "iteration order is not deterministic; use BTreeMap or IndexMap" },
+    { path = "std::collections::HashSet", reason = "iteration order is not deterministic; use BTreeSet" },
+]
+
+disallowed-methods = [
+    { path = "f64::hypot", reason = "platform maths; use libm::hypot" },
+    { path = "f64::sin", reason = "platform maths; use libm::sin" },
+    { path = "f64::cos", reason = "platform maths; use libm::cos" },
+    { path = "f64::tan", reason = "platform maths; use libm::tan" },
+    { path = "f64::asin", reason = "platform maths; use libm::asin" },
+    { path = "f64::acos", reason = "platform maths; use libm::acos" },
+    { path = "f64::atan", reason = "platform maths; use libm::atan" },
+    { path = "f64::atan2", reason = "platform maths; use libm::atan2" },
+    { path = "f64::sin_cos", reason = "platform maths; use libm" },
+    { path = "f64::exp", reason = "platform maths; use libm::exp" },
+    { path = "f64::ln", reason = "platform maths; use libm::log" },
+    { path = "f64::log10", reason = "platform maths; use libm::log10" },
+    { path = "f64::log2", reason = "platform maths; use libm::log2" },
+    { path = "f64::powf", reason = "platform maths; use libm::pow" },
+    { path = "f64::powi", reason = "platform maths; multiply explicitly or use libm::pow" },
+    { path = "f64::cbrt", reason = "platform maths; use libm::cbrt" },
+    { path = "kurbo::Vec2::hypot", reason = "kurbo routes this through std maths; use the ps_geometry::arc helpers" },
+    { path = "kurbo::Vec2::length", reason = "kurbo routes this through std maths; use the ps_geometry::arc helpers" },
+    { path = "kurbo::Vec2::normalize", reason = "kurbo routes this through std maths; divide by arc::length" },
+    { path = "kurbo::Vec2::atan2", reason = "platform maths; use libm::atan2" },
+    { path = "kurbo::Vec2::angle", reason = "platform maths; use libm::atan2" },
+    { path = "kurbo::Vec2::from_angle", reason = "platform maths; use libm::sin/cos" },
+    { path = "kurbo::Point::distance", reason = "kurbo routes this through std maths; use the ps_geometry::arc helpers" },
+    { path = "kurbo::Affine::rotate", reason = "platform maths; build the matrix from libm::sin/cos" },
+    { path = "kurbo::ParamCurveArclen::arclen", reason = "use the deterministic ps_geometry::cubic helpers" },
+    { path = "kurbo::ParamCurveArclen::inv_arclen", reason = "use the deterministic ps_geometry::cubic helpers" },
+    { path = "kurbo::flatten", reason = "use the deterministic ps_geometry::cubic::flatten" },
+]

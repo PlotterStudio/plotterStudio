@@ -1,0 +1,51 @@
+[package]
+name = "ps-fuzz-targets"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+ps-fuzz = { path = "../crates/ps-fuzz" }
+
+# Its own workspace: cargo-fuzz needs nightly, the main workspace does not.
+[workspace]
+
+[[bin]]
+name = "svg"
+path = "fuzz_targets/svg.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "dxf"
+path = "fuzz_targets/dxf.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "pdf"
+path = "fuzz_targets/pdf.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "project"
+path = "fuzz_targets/project.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "material_package"
+path = "fuzz_targets/material_package.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "library_json"
+path = "fuzz_targets/library_json.rs"
+test = false
+doc = false

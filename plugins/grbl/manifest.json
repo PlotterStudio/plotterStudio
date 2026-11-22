@@ -1,0 +1,9 @@
+{
+  "id": "plotter-studio.grbl",
+  "name": "GRBL pen plotter",
+  "version": "1.0.0",
+  "filters": [
+    { "transport": "serial" }
+  ],
+  "internet_hosts": []
+}

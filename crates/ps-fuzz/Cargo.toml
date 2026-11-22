@@ -1,0 +1,21 @@
+[package]
+name = "ps-fuzz"
+description = "Fuzz entry points for every untrusted-file parser; the cargo-fuzz targets call these."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+ps-import.workspace = true
+ps-library.workspace = true
+ps-model.workspace = true
+semver.workspace = true
+
+[dev-dependencies]
+pdf-writer.workspace = true
+zip.workspace = true
+
+[lints]
+workspace = true

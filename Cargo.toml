@@ -1,0 +1,157 @@
+# Cargo workspace (monorepo). Every crate lives in `crates/` as a sibling and inherits the
+# shared metadata, dependency versions and lints declared here.
+[workspace]
+resolver = "3"
+members = ["crates/*", "plugins/*", "xtask"]
+exclude = ["fuzz"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+license = "MIT"
+publish = false
+
+[workspace.dependencies]
+serial2 = "0.2"
+serialport = { version = "4", default-features = false }
+pdf-writer = "0.15"
+hayro-interpret = "0.9"
+futures = { version = "0.3", default-features = false, features = ["std"] }
+btleplug = "0.13"
+mdns-sd = "0.22"
+nusb = "0.2"
+tungstenite = { version = "0.30", default-features = false, features = ["handshake"] }
+fontdb = "0.24"
+criterion = { version = "0.8", default-features = false }
+rustybuzz = "0.20"
+ttf-parser = "0.25"
+vector-text-core = "0.1"
+vector-text-hershey = "0.1"
+epaint_default_fonts = "0.33"
+wasmtime = { version = "46", default-features = false, features = ["runtime", "component-model", "cranelift", "std"] }
+wasmtime-wasi = { version = "46", default-features = false, features = ["p2"] }
+# Internal crates
+ps-core = { path = "crates/ps-core" }
+ps-device = { path = "crates/ps-device" }
+ps-device-sdk = { path = "crates/ps-device-sdk" }
+ps-import = { path = "crates/ps-import" }
+ps-gcode = { path = "crates/ps-gcode" }
+ps-compiler = { path = "crates/ps-compiler" }
+ps-model = { path = "crates/ps-model" }
+ps-library = { path = "crates/ps-library" }
+ps-net = { path = "crates/ps-net" }
+ps-render = { path = "crates/ps-render" }
+ps-job = { path = "crates/ps-job" }
+ps-geometry = { path = "crates/ps-geometry" }
+
+# Library dependencies
+blake3 = "1.8"
+usvg = "0.50"
+memory-stats = "1"
+svgtypes = "0.16"
+roxmltree = "0.21"
+palette = "0.7"
+globset = "0.4"
+toml = "1"
+pollster = "0.4"
+bytemuck = "1"
+serde_yaml_ng = "0.10"
+sysinfo = { version = "0.38", default-features = false, features = ["system"] }
+eframe = { version = "0.33", default-features = false, features = ["accesskit", "default_fonts", "wgpu", "wayland", "x11"] }
+egui = "0.33"
+egui-wgpu = "0.33"
+wgpu = { version = "27", default-features = false, features = ["dx12", "metal", "vulkan", "gles", "wgsl"] }
+egui_kittest = "0.33"
+rfd = "0.18"
+sys-locale = "0.3"
+fluent-bundle = "0.16"
+fluent-syntax = "0.12"
+unic-langid = "0.9"
+cargo_metadata = "0.23"
+ureq = "3"
+rustls = "0.23"
+webpki-roots = "1"
+rcgen = "0.14"
+minisign-verify = "0.3"
+minisign = "0.10"
+wit-parser = "0.263"
+dxf = "0.6"
+flate2 = "1.1"
+lru = "0.19"
+rayon = "1.12"
+rustc-hash = "2.1"
+boostvoronoi = "0.12"
+cavalier_contours = "0.7"
+i_overlay = "7"
+indexmap = { version = "2", features = ["serde"] }
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp"] }
+jagua-rs = "0.7.2"
+kurbo = { version = "0.13", features = ["serde"] }
+libm = "0.2"
+linesweeper = "0.4"
+rstar = "0.12"
+simplify-polyline = { version = "0.5", default-features = false }
+lyon_tessellation = "1"
+rand = "0.8"
+rand_chacha = "0.3"
+sha2 = "0.11"
+semver = { version = "1", features = ["serde"] }
+serde = { version = "1", features = ["derive", "rc"] }
+thiserror = "2"
+tokio = "1"
+tracing = "0.1"
+zip = { version = "9", default-features = false, features = ["deflate"] }
+uuid = { version = "1", features = ["v7", "serde"] }
+
+# Application / tooling dependencies (never used by library crates)
+anyhow = "1"
+async-trait = "0.1"
+arc-swap = "1"
+clap = { version = "4", features = ["derive"] }
+jsonschema = { version = "0.61", default-features = false }
+tempfile = "3"
+directories = "6"
+proptest = "1"
+schemars = "1"
+serde_json = "1"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+missing_debug_implementations = "warn"
+rust_2018_idioms = { level = "warn", priority = -1 }
+unreachable_pub = "warn"
+unused_qualifications = "warn"
+
+[workspace.lints.clippy]
+# Broad, well-established groups; individual opt-outs below are deliberate.
+all = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+# Noisy pedantic lints that don't pay for themselves in this codebase.
+module_name_repetitions = "allow"
+must_use_candidate = "allow"
+missing_errors_doc = "allow"
+# Restriction lints worth having.
+dbg_macro = "warn"
+todo = "warn"
+unimplemented = "warn"
+print_stdout = "warn"
+print_stderr = "warn"
+allow_attributes = "warn"
+undocumented_unsafe_blocks = "warn"
+
+# jagua-rs rebuilds its whole quadtree inside debug assertions on every placement, which makes
+# debug test runs of the nester minutes long; its own checks are not ours to run.
+[profile.dev.package.jagua-rs]
+debug-assertions = false
+opt-level = 3
+
+[profile.release]
+debug = "line-tables-only"
+lto = "thin"
+codegen-units = 1
+strip = "symbols"
+# The crash-recovery hook needs panics to unwind. Split debug info is uploaded with
+# each release so crash reports can be symbolicated.
+panic = "unwind"
+split-debuginfo = "packed"

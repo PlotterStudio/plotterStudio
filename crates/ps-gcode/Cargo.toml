@@ -1,0 +1,26 @@
+[package]
+name = "ps-gcode"
+description = "Plotter Studio G-code writer, validator, previews and .psjob bundle writer."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+libm.workspace = true
+ps-core.workspace = true
+ps-job.workspace = true
+ps-library.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+zip.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+ps-compiler.workspace = true
+ps-model.workspace = true
+ps-geometry.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,83 @@
+name: Nightly
+
+# Long property tests, benchmarks, render tests on every desktop system, and unsigned packages
+# for testers.
+on:
+  schedule:
+    - cron: "17 2 * * *"
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  property-tests:
+    name: long property tests (10,000 cases)
+    runs-on: ubuntu-22.04
+    env:
+      PROPTEST_CASES: "10000"
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y libudev-dev pkg-config
+      - run: rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test --workspace --release --locked
+
+  fuzz:
+    name: fuzz ${{ matrix.target }} (30 min)
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [svg, dxf, pdf, project, material_package, library_json]
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup toolchain install nightly --profile minimal
+      - run: cargo install cargo-fuzz --locked
+      - uses: actions/cache@v4
+        with:
+          path: fuzz/corpus/${{ matrix.target }}
+          key: fuzz-corpus-${{ matrix.target }}-${{ github.run_id }}
+          restore-keys: fuzz-corpus-${{ matrix.target }}-
+      # A crash fails the job and uploads its input; add the bytes to `REGRESSIONS` in
+      # crates/ps-fuzz/src/tests.rs so the fix stays fixed.
+      - run: cargo +nightly fuzz run ${{ matrix.target }} -- -max_total_time=1800
+        working-directory: fuzz
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: fuzz-crash-${{ matrix.target }}
+          path: fuzz/artifacts/${{ matrix.target }}
+
+  render-tests:
+    name: render tests (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-14, windows-2022]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test -p ps-render -p ps-app --locked
+
+  packages:
+    name: unsigned nightly packages
+    needs: [property-tests, render-tests]
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y libudev-dev pkg-config libxkbcommon-dev libwayland-dev libx11-dev libxcursor-dev libxrandr-dev libxi-dev libvulkan-dev
+      - run: rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --release --locked -p ps-app -p ps-cli
+      - run: tar czf plotter-studio-nightly-linux-x64.tar.gz -C target/release plotter-studio pstudio
+      - name: Publish the rolling pre-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete nightly --yes --cleanup-tag || true
+          gh release create nightly --prerelease --title "Nightly" --notes "Unsigned build for testers" plotter-studio-nightly-linux-x64.tar.gz

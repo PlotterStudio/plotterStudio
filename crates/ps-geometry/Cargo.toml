@@ -1,0 +1,27 @@
+[package]
+name = "ps-geometry"
+description = "Plotter Studio geometry engine: paths with true arcs, booleans, offsets, fills and spatial queries."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+cavalier_contours.workspace = true
+i_overlay.workspace = true
+kurbo.workspace = true
+libm.workspace = true
+linesweeper.workspace = true
+ps-core.workspace = true
+rstar.workspace = true
+thiserror.workspace = true
+serde.workspace = true
+boostvoronoi.workspace = true
+
+[dev-dependencies]
+proptest.workspace = true
+serde_json.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "version": "1.0.0",
+  "license": "CC0-1.0",
+  "id": "community.cardstock-80lb",
+  "name": "Cardstock 80 lb",
+  "category": "paper",
+  "brand": "Generic",
+  "thickness_mm": 0.22,
+  "grip": [
+    "standard",
+    "strong"
+  ],
+  "presets": [
+    {
+      "tool": "generic.drag-blade",
+      "operation": "cut",
+      "params": {
+        "force": 210,
+        "speed": 100,
+        "passes": 1
+      },
+      "machines": {
+        "generic.cutter-medium": {
+          "force": 230
+        }
+      }
+    },
+    {
+      "tool": "pen.fineliner-black-0.4",
+      "operation": "draw",
+      "params": {
+        "force": 100,
+        "speed": 100
+      }
+    },
+    {
+      "tool": "generic.scoring-stylus",
+      "operation": "score",
+      "params": {
+        "force": 160,
+        "speed": 80
+      }
+    }
+  ]
+}

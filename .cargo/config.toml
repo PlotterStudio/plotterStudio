@@ -1,0 +1,18 @@
+# Short aliases for the quality gate; CI runs the same commands.
+[alias]
+# Lint everything, warnings are errors.
+lint = "clippy --workspace --all-targets -- -D warnings"
+# Format check without rewriting.
+fmt-check = "fmt --all --check"
+# All tests in all crates (unit, integration, doc tests).
+test-all = "test --workspace"
+# Build docs as CI does (pair with RUSTDOCFLAGS="-D warnings").
+docs = "doc --workspace --no-deps"
+
+# Repository chores: dependency-boundary check.
+xtask = "run -q -p xtask --"
+
+# Windows builds link the C runtime statically so no Visual C++ redistributable is needed
+#.
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]

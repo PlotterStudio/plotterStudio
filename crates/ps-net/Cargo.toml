@@ -1,0 +1,24 @@
+[package]
+name = "ps-net"
+description = "Plotter Studio internet access: the release feed and the signed material index, both opt-in."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+minisign-verify.workspace = true
+ps-library.workspace = true
+semver.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+thiserror.workspace = true
+ureq.workspace = true
+
+[dev-dependencies]
+minisign.workspace = true
+
+[lints]
+workspace = true

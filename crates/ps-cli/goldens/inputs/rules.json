@@ -1,0 +1,4 @@
+[
+  {"match": {"stroke": "#FF0000"}, "assign": {"op": "cut", "tool": "generic.drag-blade"}},
+  {"match": {"stroke": "#0000FF"}, "assign": {"op": "draw", "tool": "pen.fineliner-black-0.4"}}
+]

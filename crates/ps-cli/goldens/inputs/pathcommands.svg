@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="200mm" height="200mm" viewBox="0 0 200 200">
+  <path d="M 20 20 L 60 20 H 80 V 40 Q 90 50 80 60 T 60 80 Z" fill="none" stroke="#FF0000" stroke-width="0.5"/>
+  <path d="M 100 20 C 110 0, 130 0, 140 20 S 160 40, 170 20" fill="none" stroke="#0000FF" stroke-width="0.5"/>
+  <path d="M 30 120 A 25 15 30 1 0 80 140 a 10 10 0 0 1 20 0" fill="none" stroke="#FF0000" stroke-width="0.5"/>
+  <polygon points="120,120 160,120 140,160" fill="none" stroke="#0000FF" stroke-width="0.5"/>
+  <ellipse cx="60" cy="170" rx="30" ry="10" fill="none" stroke="#FF0000" stroke-width="0.5"/>
+</svg>

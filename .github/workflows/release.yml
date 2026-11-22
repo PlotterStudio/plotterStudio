@@ -1,0 +1,173 @@
+name: Release
+
+# Runs on a version tag: builds, signs and packages Windows, macOS (universal) and Linux, then
+# prepares a draft GitHub Release with checksums, signatures, an SBOM and build provenance
+#. The release stays a draft until a maintainer has run the hardware smoke checklist.
+on:
+  push:
+    tags: ["v*"]
+
+env:
+  CARGO_TERM_COLOR: always
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+
+jobs:
+  build-windows:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --release --locked -p ps-app -p ps-cli --target x86_64-pc-windows-msvc
+      - run: cargo install cargo-packager --locked
+      - run: cargo packager --release -p ps-app --formats nsis,wix
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-unsigned
+          path: |
+            target/release/*.exe
+            target/release/*.msi
+
+  build-macos:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup toolchain install
+      - run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --release --locked -p ps-app -p ps-cli --target aarch64-apple-darwin
+      - run: cargo build --release --locked -p ps-app -p ps-cli --target x86_64-apple-darwin
+      - name: Merge the two architectures into one universal binary
+        run: |
+          mkdir -p target/universal
+          lipo -create -output target/universal/plotter-studio \
+            target/aarch64-apple-darwin/release/plotter-studio \
+            target/x86_64-apple-darwin/release/plotter-studio
+      - run: cargo install cargo-packager --locked
+      - run: cargo packager --release -p ps-app --formats dmg
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-unsigned
+          path: target/release/*.dmg
+
+  build-linux:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y libudev-dev pkg-config libxkbcommon-dev libwayland-dev libx11-dev libxcursor-dev libxrandr-dev libxi-dev libvulkan-dev
+      - run: rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --release --locked -p ps-app -p ps-cli
+      - run: cargo install cargo-packager --locked
+      - run: cargo packager --release -p ps-app --formats appimage,deb
+      - run: tar czf plotter-studio-linux-x64.tar.gz -C target/release plotter-studio pstudio
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-unsigned
+          path: |
+            target/release/*.AppImage
+            target/release/*.deb
+            plotter-studio-linux-x64.tar.gz
+
+  sign-macos:
+    needs: [build-macos]
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: macos-unsigned
+          path: dist
+      # notarise -> staple -> sign .dmg, with the Developer ID certificate and an App Store
+      # Connect API key from the repository secrets.
+      - uses: indygreg/apple-code-sign-action@v1
+        with:
+          input_path: dist
+          p12_file: ${{ secrets.APPLE_DEVELOPER_ID_P12 }}
+          p12_password: ${{ secrets.APPLE_DEVELOPER_ID_PASSWORD }}
+          app_store_connect_api_key_json_file: ${{ secrets.APP_STORE_CONNECT_API_KEY_JSON }}
+          sign: true
+          notarize: true
+          staple: true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-signed
+          path: dist
+
+  sign-windows:
+    needs: [build-windows]
+    runs-on: windows-2022
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-unsigned
+          path: dist
+      # SignPath signs the .exe, then the NSIS installer and the .msi. Until the foundation
+      # approves the project, releases ship unsigned with checksums.
+      - uses: signpath/github-action-submit-signing-request@v1
+        continue-on-error: true
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ secrets.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: plotter-studio
+          signing-policy-slug: release-signing
+          github-artifact-id: ${{ github.run_id }}
+          output-artifact-directory: dist-signed
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-signed
+          path: dist
+
+  sign-linux:
+    needs: [build-linux]
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: linux-unsigned
+          path: dist
+      - name: minisign over every artefact
+        env:
+          MINISIGN_KEY: ${{ secrets.MINISIGN_SECRET_KEY }}
+        run: |
+          sudo apt-get update && sudo apt-get install -y minisign
+          echo "$MINISIGN_KEY" > key.sec
+          for f in dist/*; do minisign -S -s key.sec -m "$f"; done
+          rm key.sec
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-signed
+          path: dist
+
+  publish:
+    needs: [sign-macos, sign-windows, sign-linux]
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - run: rustup toolchain install
+      - run: cargo install cargo-cyclonedx --locked
+      - run: cargo cyclonedx --all
+      - name: Checksums and their signature
+        env:
+          MINISIGN_KEY: ${{ secrets.MINISIGN_SECRET_KEY }}
+        run: |
+          cd dist
+          sha256sum * > SHA256SUMS
+          sudo apt-get update && sudo apt-get install -y minisign
+          echo "$MINISIGN_KEY" > ../key.sec
+          minisign -S -s ../key.sec -m SHA256SUMS
+      - uses: actions/attest-build-provenance@v1
+        with:
+          subject-path: dist/*
+      - name: A draft release for a maintainer to publish after the hardware smoke checklist
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: gh release create "$TAG" --draft --notes-file CHANGELOG.md dist/* **/*.cdx.json

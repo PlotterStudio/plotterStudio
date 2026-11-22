@@ -1,0 +1,36 @@
+[package]
+name = "ps-import"
+description = "Plotter Studio importers: SVG, DXF and the shared repair, mapping-rule and re-import pipeline."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+dxf.workspace = true
+flate2.workspace = true
+hayro-interpret.workspace = true
+globset.workspace = true
+libm.workspace = true
+palette.workspace = true
+ps-core.workspace = true
+ps-geometry.workspace = true
+ps-library.workspace = true
+ps-model.workspace = true
+roxmltree.workspace = true
+svgtypes.workspace = true
+rstar.workspace = true
+rustybuzz.workspace = true
+thiserror.workspace = true
+ttf-parser.workspace = true
+usvg.workspace = true
+vector-text-core.workspace = true
+vector-text-hershey.workspace = true
+
+[dev-dependencies]
+pdf-writer.workspace = true
+epaint_default_fonts.workspace = true
+
+[lints]
+workspace = true

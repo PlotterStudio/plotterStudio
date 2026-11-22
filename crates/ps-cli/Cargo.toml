@@ -1,0 +1,40 @@
+[package]
+name = "ps-cli"
+description = "pstudio: headless export, validation and inspection with the same code as the app."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "pstudio"
+path = "src/main.rs"
+
+[dependencies]
+clap.workspace = true
+ps-compiler.workspace = true
+ps-core.workspace = true
+ps-device.workspace = true
+ps-gcode.workspace = true
+ps-geometry.workspace = true
+ps-import.workspace = true
+ps-job.workspace = true
+ps-library.workspace = true
+ps-model.workspace = true
+semver.workspace = true
+serde_json.workspace = true
+tokio = { workspace = true, features = ["rt", "sync", "time"] }
+
+[dev-dependencies]
+pdf-writer.workspace = true
+criterion.workspace = true
+tempfile.workspace = true
+zip.workspace = true
+
+[[bench]]
+name = "budgets"
+harness = false
+
+[lints]
+workspace = true

@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "version": "1.0.0",
+  "license": "CC0-1.0",
+  "id": "generic.grbl-pen-plotter",
+  "name": "Generic GRBL pen plotter",
+  "work_area": {
+    "width_mm": 300,
+    "height_mm": 200
+  },
+  "mat_sizes": [
+    {
+      "name": "A4",
+      "width_mm": 297,
+      "height_mm": 210
+    }
+  ],
+  "origin": "bottom_left",
+  "keep_outs": [],
+  "holders": [
+    {
+      "id": "grbl.pen-holder",
+      "label": "Pen holder",
+      "accepts": [
+        "pen"
+      ]
+    }
+  ],
+  "force": {
+    "min_gf": 0,
+    "max_gf": 300,
+    "units_per_gf": 1.0
+  },
+  "max_speed_mm_s": 200,
+  "max_accel_mm_s2": 1000,
+  "junction_deviation_mm": 0.05,
+  "tool_up_ms": 100,
+  "tool_down_ms": 100,
+  "arcs": true,
+  "tangential_axis": false,
+  "heated": false,
+  "gcode": {
+    "dialect": "ps-gcode/1",
+    "arcs": true,
+    "chord_tolerance_mm": 0.01
+  }
+}

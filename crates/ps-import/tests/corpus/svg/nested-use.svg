@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="200mm" height="100mm" viewBox="0 0 200 100">
+  <defs>
+    <symbol id="tile" viewBox="0 0 10 10"><rect x="1" y="1" width="8" height="8" fill="none" stroke="#ff0000" stroke-width="0.4"/></symbol>
+    <g id="pair"><use xlink:href="#tile" width="20" height="20"/><use xlink:href="#tile" x="30" width="20" height="20"/></g>
+  </defs>
+  <g transform="translate(10 10) rotate(10)"><use xlink:href="#pair"/></g>
+  <g transform="translate(100 10) scale(2)"><use xlink:href="#pair"/></g>
+</svg>
