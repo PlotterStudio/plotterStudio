@@ -3,7 +3,7 @@
 name = "ps-app"
 product-name = "Plotter Studio"
 identifier = "io.github.plotter-studio"
-version = "0.1.0"
+version = "0.1.1"
 description = "Design and cut with plotters and cutting machines, without a cloud."
 category = "Graphics and Design"
 authors = ["Plotter Studio contributors"]

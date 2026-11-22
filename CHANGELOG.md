@@ -7,6 +7,8 @@ commits (see `cliff.toml`).
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-11-22
+
 ### Added
 - An MCP server over streamable HTTP, turned on in **Settings → Automation** (off by default). It
   listens on this computer only unless you allow the network, needs an access token, refuses
