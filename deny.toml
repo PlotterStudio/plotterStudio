@@ -5,6 +5,12 @@ all-features = true
 [advisories]
 # Fail on known vulnerabilities and on unmaintained/yanked crates in the tree.
 yanked = "deny"
+ignore = [
+    # Both are "unmaintained" notices, not vulnerabilities, with no maintained drop-in
+    # replacement for the text shaping they provide. Revisit when one appears.
+    { id = "RUSTSEC-2026-0192", reason = "ttf-parser is unmaintained; no vulnerability, no safe upgrade" },
+    { id = "RUSTSEC-2026-0206", reason = "rustybuzz is unmaintained; no vulnerability, no safe upgrade" },
+]
 
 [licenses]
 # Permissive licences compatible with this MIT-licensed project.
@@ -24,8 +30,16 @@ allow = [
     "CDLA-Permissive-2.0", # webpki-roots: the Mozilla certificate list
     "OFL-1.1", # egui default fonts
     "Ubuntu-font-1.0", # egui default fonts
+    "LicenseRef-Hershey", # the Hershey fonts, see the clarification below
 ]
 confidence-threshold = 0.9
+
+# vector-text-hershey declares no licence in its manifest; it ships the Hershey fonts with their
+# own permissive terms (attribution is reproduced in THIRD-PARTY-LICENSES.md).
+[[licenses.clarify]]
+crate = "vector-text-hershey"
+expression = "LicenseRef-Hershey"
+license-files = [{ path = "LICENSE", hash = 0x879bb6fc }]
 
 [bans]
 multiple-versions = "warn"

@@ -20,7 +20,6 @@ Plotter Studio is built from these packages.
 - alloc-stdlib 0.2.4: BSD-3-Clause
 - alloca 0.4.0: MIT
 - allocator-api2 0.2.21: MIT OR Apache-2.0
-- ambient-authority 0.0.2: Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT
 - android-activity 0.6.1: MIT OR Apache-2.0
 - android-properties 0.2.2: MIT
 - android_system_properties 0.1.6: MIT OR Apache-2.0
@@ -99,11 +98,6 @@ Plotter Studio is built from these packages.
 - calloop-wayland-source 0.3.0: MIT
 - calloop-wayland-source 0.4.1: MIT
 - camino 1.2.6: MIT OR Apache-2.0
-- cap-fs-ext 3.4.6: Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT
-- cap-net-ext 3.4.6: Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT
-- cap-primitives 3.4.6: Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT
-- cap-std 3.4.6: Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT
-- cap-time-ext 3.4.6: Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT
 - cargo-platform 0.3.2: MIT OR Apache-2.0
 - cargo_metadata 0.23.1: MIT
 - cast 0.3.0: MIT OR Apache-2.0
@@ -140,23 +134,23 @@ Plotter Studio is built from these packages.
 - core-graphics-types 0.2.0: MIT OR Apache-2.0
 - core_detect 1.0.0: MIT/Apache-2.0
 - core_maths 0.1.1: MIT
-- cpp_demangle 0.4.5: MIT OR Apache-2.0
+- cpp_demangle 0.5.1: MIT OR Apache-2.0
 - cpp_map 0.2.0: MIT OR Apache-2.0
 - cpufeatures 0.2.17: MIT OR Apache-2.0
 - cpufeatures 0.3.1: MIT OR Apache-2.0
-- cranelift-assembler-x64 0.133.3: Apache-2.0 WITH LLVM-exception
-- cranelift-assembler-x64-meta 0.133.3: Apache-2.0 WITH LLVM-exception
-- cranelift-bforest 0.133.3: Apache-2.0 WITH LLVM-exception
-- cranelift-bitset 0.133.3: Apache-2.0 WITH LLVM-exception
-- cranelift-codegen 0.133.3: Apache-2.0 WITH LLVM-exception
-- cranelift-codegen-meta 0.133.3: Apache-2.0 WITH LLVM-exception
-- cranelift-codegen-shared 0.133.3: Apache-2.0 WITH LLVM-exception
-- cranelift-control 0.133.3: Apache-2.0 WITH LLVM-exception
-- cranelift-entity 0.133.3: Apache-2.0 WITH LLVM-exception
-- cranelift-frontend 0.133.3: Apache-2.0 WITH LLVM-exception
-- cranelift-isle 0.133.3: Apache-2.0 WITH LLVM-exception
-- cranelift-native 0.133.3: Apache-2.0 WITH LLVM-exception
-- cranelift-srcgen 0.133.3: Apache-2.0 WITH LLVM-exception
+- cranelift-assembler-x64 0.138.0: Apache-2.0 WITH LLVM-exception
+- cranelift-assembler-x64-meta 0.138.0: Apache-2.0 WITH LLVM-exception
+- cranelift-bforest 0.138.0: Apache-2.0 WITH LLVM-exception
+- cranelift-bitset 0.138.0: Apache-2.0 WITH LLVM-exception
+- cranelift-codegen 0.138.0: Apache-2.0 WITH LLVM-exception
+- cranelift-codegen-meta 0.138.0: Apache-2.0 WITH LLVM-exception
+- cranelift-codegen-shared 0.138.0: Apache-2.0 WITH LLVM-exception
+- cranelift-control 0.138.0: Apache-2.0 WITH LLVM-exception
+- cranelift-entity 0.138.0: Apache-2.0 WITH LLVM-exception
+- cranelift-frontend 0.138.0: Apache-2.0 WITH LLVM-exception
+- cranelift-isle 0.138.0: Apache-2.0 WITH LLVM-exception
+- cranelift-native 0.138.0: Apache-2.0 WITH LLVM-exception
+- cranelift-srcgen 0.138.0: Apache-2.0 WITH LLVM-exception
 - crc32fast 1.5.5: MIT OR Apache-2.0
 - criterion 0.8.2: Apache-2.0 OR MIT
 - criterion-plot 0.8.2: Apache-2.0 OR MIT
@@ -241,7 +235,6 @@ Plotter Studio is built from these packages.
 - foreign-types-shared 0.3.1: MIT/Apache-2.0
 - form_urlencoded 1.2.2: MIT OR Apache-2.0
 - fraction 0.17.0: MIT OR Apache-2.0
-- fs-set-times 0.20.3: Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT
 - fs_extra 1.3.0: MIT
 - futures 0.3.34: MIT OR Apache-2.0
 - futures-channel 0.3.34: MIT OR Apache-2.0
@@ -327,11 +320,8 @@ Plotter Studio is built from these packages.
 - inout 0.1.4: MIT OR Apache-2.0
 - intl-memoizer 0.5.3: Apache-2.0 OR MIT
 - intl_pluralrules 7.0.2: Apache-2.0/MIT
-- io-extras 0.18.4: Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT
 - io-kit-sys 0.4.1: MIT / Apache-2.0
 - io-kit-sys 0.5.0: MIT OR Apache-2.0
-- io-lifetimes 2.0.4: Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT
-- ipnet 2.12.2: MIT OR Apache-2.0
 - is_terminal_polyfill 1.70.2: MIT OR Apache-2.0
 - itertools 0.13.0: MIT OR Apache-2.0
 - itertools 0.14.0: MIT OR Apache-2.0
@@ -376,7 +366,6 @@ Plotter Studio is built from these packages.
 - macro-string 0.2.0: MIT OR Apache-2.0
 - malloc_buf 0.0.6: MIT
 - matrixmultiply 0.3.11: MIT/Apache-2.0
-- maybe-owned 0.3.4: MIT OR Apache-2.0
 - mdns-sd 0.22.0: Apache-2.0 OR MIT
 - memchr 2.8.3: Unlicense OR MIT
 - memfd 0.6.6: MIT OR Apache-2.0
@@ -443,7 +432,7 @@ Plotter Studio is built from these packages.
 - objc2-uniform-type-identifiers 0.2.2: MIT
 - objc2-uniform-type-identifiers 0.3.2: Zlib OR Apache-2.0 OR MIT
 - objc2-user-notifications 0.2.2: MIT
-- object 0.39.1: Apache-2.0 OR MIT
+- object 0.40.0: Apache-2.0 OR MIT
 - oid-registry 0.8.1: MIT OR Apache-2.0
 - once_cell 1.21.4: MIT OR Apache-2.0
 - once_cell_polyfill 1.70.2: MIT OR Apache-2.0
@@ -494,8 +483,8 @@ Plotter Studio is built from these packages.
 - proc-macro2 1.0.107: MIT OR Apache-2.0
 - profiling 1.0.18: MIT OR Apache-2.0
 - proptest 1.12.0: MIT OR Apache-2.0
-- pulley-interpreter 46.0.3: Apache-2.0 WITH LLVM-exception
-- pulley-macros 46.0.3: Apache-2.0 WITH LLVM-exception
+- pulley-interpreter 51.0.0: Apache-2.0 WITH LLVM-exception
+- pulley-macros 51.0.0: Apache-2.0 WITH LLVM-exception
 - pxfm 0.1.30: BSD-3-Clause OR Apache-2.0
 - quick-error 1.2.3: MIT/Apache-2.0
 - quick-error 2.0.1: MIT/Apache-2.0
@@ -690,26 +679,26 @@ Plotter Studio is built from these packages.
 - wasm-bindgen-macro-support 0.2.130: MIT OR Apache-2.0
 - wasm-bindgen-shared 0.2.130: MIT OR Apache-2.0
 - wasm-encoder 0.247.0: Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT
-- wasm-encoder 0.251.0: Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT
+- wasm-encoder 0.263.0: Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT
 - wasm-metadata 0.247.0: Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT
+- wasm-metadata 0.263.0: Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT
 - wasmparser 0.247.0: Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT
-- wasmparser 0.251.0: Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT
 - wasmparser 0.263.0: Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT
-- wasmprinter 0.251.0: Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT
-- wasmtime 46.0.3: Apache-2.0 WITH LLVM-exception
-- wasmtime-environ 46.0.3: Apache-2.0 WITH LLVM-exception
-- wasmtime-internal-component-macro 46.0.3: Apache-2.0 WITH LLVM-exception
-- wasmtime-internal-component-util 46.0.3: Apache-2.0 WITH LLVM-exception
-- wasmtime-internal-core 46.0.3: Apache-2.0 WITH LLVM-exception
-- wasmtime-internal-cranelift 46.0.3: Apache-2.0 WITH LLVM-exception
-- wasmtime-internal-fiber 46.0.3: Apache-2.0 WITH LLVM-exception
-- wasmtime-internal-jit-debug 46.0.3: Apache-2.0 WITH LLVM-exception
-- wasmtime-internal-jit-icache-coherence 46.0.3: Apache-2.0 WITH LLVM-exception
-- wasmtime-internal-unwinder 46.0.3: Apache-2.0 WITH LLVM-exception
-- wasmtime-internal-versioned-export-macros 46.0.3: Apache-2.0 WITH LLVM-exception
-- wasmtime-internal-wit-bindgen 46.0.3: Apache-2.0 WITH LLVM-exception
-- wasmtime-wasi 46.0.3: Apache-2.0 WITH LLVM-exception
-- wasmtime-wasi-io 46.0.3: Apache-2.0 WITH LLVM-exception
+- wasmprinter 0.263.0: Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT
+- wasmtime 51.0.0: Apache-2.0 WITH LLVM-exception
+- wasmtime-environ 51.0.0: Apache-2.0 WITH LLVM-exception
+- wasmtime-internal-component-macro 51.0.0: Apache-2.0 WITH LLVM-exception
+- wasmtime-internal-component-util 51.0.0: Apache-2.0 WITH LLVM-exception
+- wasmtime-internal-core 51.0.0: Apache-2.0 WITH LLVM-exception
+- wasmtime-internal-cranelift 51.0.0: Apache-2.0 WITH LLVM-exception
+- wasmtime-internal-fiber 51.0.0: Apache-2.0 WITH LLVM-exception
+- wasmtime-internal-jit-debug 51.0.0: Apache-2.0 WITH LLVM-exception
+- wasmtime-internal-jit-icache-coherence 51.0.0: Apache-2.0 WITH LLVM-exception
+- wasmtime-internal-unwinder 51.0.0: Apache-2.0 WITH LLVM-exception
+- wasmtime-internal-versioned-export-macros 51.0.0: Apache-2.0 WITH LLVM-exception
+- wasmtime-internal-wit-bindgen 51.0.0: Apache-2.0 WITH LLVM-exception
+- wasmtime-wasi 51.0.0: Apache-2.0 WITH LLVM-exception
+- wasmtime-wasi-io 51.0.0: Apache-2.0 WITH LLVM-exception
 - wayland-backend 0.3.17: MIT
 - wayland-client 0.31.15: MIT
 - wayland-csd-frame 0.3.0: MIT
@@ -776,14 +765,13 @@ Plotter Studio is built from these packages.
 - windows_x86_64_msvc 0.52.6: MIT OR Apache-2.0
 - winit 0.30.13: Apache-2.0
 - winnow 1.0.5: MIT
-- winx 0.36.4: Apache-2.0 WITH LLVM-exception
 - wit-bindgen 0.57.1: Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT
 - wit-bindgen-core 0.57.1: Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT
 - wit-bindgen-rust 0.57.1: Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT
 - wit-bindgen-rust-macro 0.57.1: Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT
 - wit-component 0.247.0: Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT
+- wit-component 0.263.0: Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT
 - wit-parser 0.247.0: Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT
-- wit-parser 0.251.0: Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT
 - wit-parser 0.263.0: Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT
 - writeable 0.6.4: Unicode-3.0
 - x11-dl 2.21.0: MIT

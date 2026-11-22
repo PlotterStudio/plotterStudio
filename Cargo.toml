@@ -29,8 +29,8 @@ ttf-parser = "0.25"
 vector-text-core = "0.1"
 vector-text-hershey = "0.1"
 epaint_default_fonts = "0.33"
-wasmtime = { version = "46", default-features = false, features = ["runtime", "component-model", "cranelift", "std"] }
-wasmtime-wasi = { version = "46", default-features = false, features = ["p2"] }
+wasmtime = { version = "51", default-features = false, features = ["runtime", "component-model", "cranelift", "std"] }
+wasmtime-wasi = { version = "51", default-features = false, features = ["p2"] }
 # Internal crates
 ps-core = { path = "crates/ps-core" }
 ps-device = { path = "crates/ps-device" }

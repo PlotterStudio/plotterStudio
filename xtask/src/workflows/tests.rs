@@ -86,7 +86,7 @@ fn tests_run_on_linux_windows_and_macos() {
         .iter()
         .filter_map(Value::as_str)
         .collect();
-    for os in ["ubuntu-22.04", "windows-2022", "macos-14"] {
+    for os in ["ubuntu-22.04", "windows-2022", "macos-15"] {
         assert!(oses.contains(&os), "{os} in {oses:?}");
     }
     assert!(text_of("ci.yml").contains("cargo test --workspace --locked"));
