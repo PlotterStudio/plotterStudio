@@ -5001,7 +5001,6 @@ dependencies = [
  "ps-core",
  "ps-device-sdk",
  "ps-gcode",
- "ps-job",
  "rcgen",
  "rustls",
  "serde",
@@ -5087,7 +5086,6 @@ dependencies = [
  "pdf-writer",
  "ps-core",
  "ps-geometry",
- "ps-library",
  "ps-model",
  "roxmltree 0.21.2",
  "rstar 0.12.2",
@@ -5123,7 +5121,6 @@ dependencies = [
  "directories",
  "image",
  "jsonschema",
- "libm",
  "proptest",
  "ps-core",
  "schemars",
@@ -5142,7 +5139,6 @@ name = "ps-model"
 version = "0.1.0"
 dependencies = [
  "indexmap",
- "libm",
  "ps-core",
  "ps-geometry",
  "ps-library",

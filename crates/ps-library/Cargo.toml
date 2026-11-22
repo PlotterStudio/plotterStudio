@@ -11,7 +11,6 @@ publish.workspace = true
 directories.workspace = true
 image.workspace = true
 jsonschema.workspace = true
-libm.workspace = true
 ps-core.workspace = true
 schemars.workspace = true
 semver.workspace = true

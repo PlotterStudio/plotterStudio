@@ -16,7 +16,6 @@ libm.workspace = true
 palette.workspace = true
 ps-core.workspace = true
 ps-geometry.workspace = true
-ps-library.workspace = true
 ps-model.workspace = true
 roxmltree.workspace = true
 svgtypes.workspace = true

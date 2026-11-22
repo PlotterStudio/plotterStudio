@@ -13,7 +13,6 @@ async-trait.workspace = true
 ps-core.workspace = true
 ps-device-sdk.workspace = true
 ps-gcode.workspace = true
-ps-job.workspace = true
 serde.workspace = true
 futures.workspace = true
 nusb.workspace = true

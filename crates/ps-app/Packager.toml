@@ -1,11 +1,16 @@
 # cargo-packager configuration: one configuration produces the .app/.dmg, the NSIS and
 # WiX installers, the AppImage and the .deb, and registers the file associations.
+name = "ps-app"
 product-name = "Plotter Studio"
 identifier = "io.github.plotter-studio"
 version = "0.1.0"
 description = "Design and cut with plotters and cutting machines, without a cloud."
 authors = ["Plotter Studio contributors"]
 license-file = "../../LICENSE"
+# Paths are read relative to this file. The binaries are built into the workspace's target
+# directory, and the installers are written beside them.
+binaries-dir = "../../target/release"
+out-dir = "../../target/release"
 binaries = [
   { path = "plotter-studio", main = true },
   { path = "pstudio" },
@@ -14,13 +19,13 @@ formats = ["nsis", "wix", "dmg", "appimage", "deb"]
 icons = ["icons/icon-32.png", "icons/icon-128.png", "icons/icon-256.png", "icons/icon.icns", "icons/icon.ico"]
 
 [[file-associations]]
-ext = ["pstudio"]
+extensions = ["pstudio"]
 name = "Plotter Studio project"
 description = "A Plotter Studio project"
 mime-type = "application/vnd.plotter-studio.project+zip"
 
 [[file-associations]]
-ext = ["psjob"]
+extensions = ["psjob"]
 name = "Plotter Studio job"
 description = "A compiled Plotter Studio job"
 mime-type = "application/vnd.plotter-studio.job+zip"

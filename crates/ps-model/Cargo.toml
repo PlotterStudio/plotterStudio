@@ -9,7 +9,6 @@ publish.workspace = true
 
 [dependencies]
 indexmap.workspace = true
-libm.workspace = true
 ps-core.workspace = true
 ps-geometry.workspace = true
 ps-library.workspace = true
