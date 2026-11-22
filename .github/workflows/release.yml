@@ -171,6 +171,10 @@ jobs:
           MINISIGN_KEY: ${{ secrets.MINISIGN_SECRET_KEY }}
         run: |
           cd dist
+          # The artefacts keep the directory they were uploaded from (target/release/...); the
+          # release wants them flat.
+          find . -mindepth 2 -type f -exec mv -t . {} +
+          find . -mindepth 1 -type d -empty -delete
           sha256sum * > SHA256SUMS
           if [ -n "$MINISIGN_KEY" ]; then
             sudo apt-get update && sudo apt-get install -y minisign
