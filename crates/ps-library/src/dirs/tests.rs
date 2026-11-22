@@ -1,5 +1,7 @@
 //! Ground truth for the data directory: the platform's own data folder, named
-//! `PlotterStudio` (for example `~/Library/Application Support/PlotterStudio` on macOS).
+//! `PlotterStudio` (for example `~/Library/Application Support/PlotterStudio` on macOS). Linux
+//! follows the XDG convention of lower case (`~/.local/share/plotterstudio`), so the name is
+//! compared without regard to case.
 
 use super::*;
 
@@ -7,7 +9,12 @@ use super::*;
 fn the_default_root_is_a_platform_folder_named_plotter_studio() {
     let root = default_root().expect("this platform has a data directory");
     assert!(root.is_absolute(), "{root:?}");
-    assert!(root.to_string_lossy().contains("PlotterStudio"), "{root:?}");
+    assert!(
+        root.to_string_lossy()
+            .to_lowercase()
+            .contains("plotterstudio"),
+        "{root:?}"
+    );
 }
 
 #[test]
@@ -27,7 +34,12 @@ fn the_settings_file_lives_in_the_platform_config_folder() {
     let path = default_settings_path().expect("this platform has a config directory");
     assert!(path.is_absolute(), "{path:?}");
     assert_eq!(path.file_name().unwrap(), "settings.toml");
-    assert!(path.to_string_lossy().contains("PlotterStudio"), "{path:?}");
+    assert!(
+        path.to_string_lossy()
+            .to_lowercase()
+            .contains("plotterstudio"),
+        "{path:?}"
+    );
 }
 
 #[test]
