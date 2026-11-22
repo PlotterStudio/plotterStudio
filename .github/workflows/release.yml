@@ -197,7 +197,9 @@ jobs:
           path: |
             dist/*
             **/*.cdx.json
-      - if: github.ref_type == 'tag'
+      # Artefact attestations exist only for public repositories (or paid private ones), so this
+      # switches itself on when the repository is opened.
+      - if: github.ref_type == 'tag' && !github.event.repository.private
         uses: actions/attest-build-provenance@v1
         with:
           subject-path: dist/*
