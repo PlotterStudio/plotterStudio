@@ -7,6 +7,8 @@ commits (see `cliff.toml`).
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-11-22
+
 ### Added
 - The Plotter Studio application: canvas editing, import of SVG and DXF drawings, the compiler,
   G-code export, a machine panel with a built-in simulator, autosave and crash recovery.
