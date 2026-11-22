@@ -1,22 +1,27 @@
 //! A Model Context Protocol server over the automation API.
 //!
-//! [`handle_message`] takes one JSON-RPC message (one line of the stdio transport) and returns
-//! the reply line, if any. It is synchronous and owns no I/O, so the window can run it on its own
-//! thread of control between frames and tests can drive it directly. [`spawn_stdio`] is the
-//! transport: it reads lines from stdin on a background thread and hands them to the host
-//! through a channel, because the app state may only be touched from the window's thread.
+//! [`handle_message`] takes one JSON-RPC message and returns the reply, if any. It is synchronous
+//! and owns no I/O, so the window can run it between frames and tests can drive it directly.
+//! [`HttpServer`] is the transport: the Streamable HTTP transport on a port the user turns on in
+//! the settings. It hands each message to the window through a channel, because the app state may
+//! only be touched from the window's thread.
 //!
 //! Hand-written rather than built on `rmcp`: the server side of the protocol needed here is
-//! three methods (`initialize`, `tools/list`, `tools/call`) over newline-delimited JSON, and
-//! the SDK's API is large and still moving.
+//! three methods (`initialize`, `tools/list`, `tools/call`) over single JSON messages, and the
+//! SDK's API is large and still moving.
 
-use std::io::{BufRead, Write};
-use std::sync::mpsc::{Receiver, Sender, channel};
+use std::sync::mpsc::Sender;
 
 use serde_json::{Map, Value, json};
 
 use crate::api::tool_catalog;
 use crate::ui::App;
+
+mod host;
+mod http;
+
+pub use host::{AutomationHost, McpStatus, endpoint_urls, generate_token, local_addresses};
+pub use http::{ENDPOINT, HttpServer, ServerConfig};
 
 /// The protocol revision this server speaks when the client asks for one we do not know.
 const LATEST_PROTOCOL: &str = "2025-06-18";
@@ -98,7 +103,7 @@ fn initialize(params: &Value) -> Value {
     })
 }
 
-/// Handles one JSON-RPC message and returns the reply line, or `None` for a notification.
+/// Handles one JSON-RPC message and returns the reply, or `None` for a notification.
 ///
 /// Tool failures are reported inside a successful reply with `isError: true` (the protocol's way
 /// of letting the model read and recover); only malformed messages and unknown methods become
@@ -134,7 +139,7 @@ fn respond(app: &mut App, message: &str, now_ms: u64) -> Option<Value> {
     })
 }
 
-/// One line from the client and where to send the reply line.
+/// One message from a client and where to send the reply.
 #[derive(Debug)]
 pub struct Request {
     /// The raw JSON-RPC message.
@@ -143,47 +148,14 @@ pub struct Request {
 }
 
 impl Request {
-    /// Runs the request against the app and sends the reply, if there is one.
+    /// Runs the request against the app and sends the reply, if there is one. A notification has
+    /// none: the reply channel is dropped unused, which tells the transport so.
     pub fn serve(self, app: &mut App, now_ms: u64) {
         if let Some(reply) = handle_message(app, &self.line, now_ms) {
-            // The writer thread is gone only when stdout closed; nothing to do about it.
+            // The transport stops listening for a reply when its client has gone; nothing to do.
             let _ = self.reply.send(reply);
         }
     }
-}
-
-/// Starts the stdio transport: requests arrive on the returned receiver, in order.
-///
-/// A reader thread forwards stdin lines; a writer thread prints replies to stdout. Both end
-/// when stdin closes. Nothing else in the process may write to stdout while this runs.
-#[must_use]
-pub fn spawn_stdio() -> Receiver<Request> {
-    let (request_tx, request_rx) = channel::<Request>();
-    let (reply_tx, reply_rx) = channel::<String>();
-    std::thread::spawn(move || {
-        let mut out = std::io::stdout().lock();
-        for reply in reply_rx {
-            if writeln!(out, "{reply}").and_then(|()| out.flush()).is_err() {
-                break;
-            }
-        }
-    });
-    std::thread::spawn(move || {
-        for line in std::io::stdin().lock().lines() {
-            let Ok(line) = line else { break };
-            if line.trim().is_empty() {
-                continue;
-            }
-            let request = Request {
-                line,
-                reply: reply_tx.clone(),
-            };
-            if request_tx.send(request).is_err() {
-                break;
-            }
-        }
-    });
-    request_rx
 }
 
 #[cfg(test)]

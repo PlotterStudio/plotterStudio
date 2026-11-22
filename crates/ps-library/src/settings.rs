@@ -101,6 +101,60 @@ pub struct Network {
     pub material_index: bool,
 }
 
+/// The port the automation server listens on unless the user picks another.
+pub const DEFAULT_MCP_PORT: u16 = 8765;
+
+/// The lowest port the user may choose: below it, listening needs special privileges on some
+/// systems and the numbers belong to well-known services.
+const MIN_MCP_PORT: u16 = 1024;
+
+/// Driving the app from outside: the automation server that lets an MCP client (an AI assistant,
+/// a script) use the app's tools over HTTP. Off until the user turns it on, and on this computer
+/// only until they allow the network; every request needs the access token.
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Automation {
+    /// Whether the server is running.
+    pub mcp_enabled: bool,
+    /// The port it listens on.
+    pub mcp_port: u16,
+    /// Whether other computers on the network may connect, not just this one.
+    pub mcp_allow_network: bool,
+    /// The secret a client sends as `Authorization: Bearer <token>`. Empty until the server is
+    /// first turned on.
+    pub mcp_token: String,
+}
+
+impl Default for Automation {
+    fn default() -> Self {
+        Self {
+            mcp_enabled: false,
+            mcp_port: DEFAULT_MCP_PORT,
+            mcp_allow_network: false,
+            mcp_token: String::new(),
+        }
+    }
+}
+
+// By hand so the token is never printed, whatever logs or panic reports hold a `Settings`.
+impl std::fmt::Debug for Automation {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Automation")
+            .field("mcp_enabled", &self.mcp_enabled)
+            .field("mcp_port", &self.mcp_port)
+            .field("mcp_allow_network", &self.mcp_allow_network)
+            .field(
+                "mcp_token",
+                &if self.mcp_token.is_empty() {
+                    "<none>"
+                } else {
+                    "<hidden>"
+                },
+            )
+            .finish()
+    }
+}
+
 /// All app settings.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
@@ -123,6 +177,8 @@ pub struct Settings {
     pub keep_backup: bool,
     /// Internet opt-ins.
     pub network: Network,
+    /// The automation (MCP) server.
+    pub automation: Automation,
     /// Preview quality.
     pub gpu_quality: GpuQuality,
     /// Recently opened files, newest first.
@@ -165,6 +221,7 @@ impl Default for Settings {
             autosave_interval_s: 30,
             keep_backup: true,
             network: Network::default(),
+            automation: Automation::default(),
             gpu_quality: GpuQuality::default(),
             recent_files: Vec::new(),
             first_run_seen: false,
@@ -195,6 +252,9 @@ impl Settings {
         let mut s: Self = toml::from_str(text).map_err(|e| SettingsError::Parse(e.to_string()))?;
         s.autosave_interval_s = s.autosave_interval_s.clamp(MIN_AUTOSAVE_S, MAX_AUTOSAVE_S);
         s.recent_files.truncate(MAX_RECENT);
+        if s.automation.mcp_port < MIN_MCP_PORT {
+            s.automation.mcp_port = DEFAULT_MCP_PORT;
+        }
         s.screen_calibration = if s.screen_calibration.is_finite() {
             s.screen_calibration
                 .clamp(MIN_SCREEN_CALIBRATION, MAX_SCREEN_CALIBRATION)

@@ -2340,3 +2340,123 @@ fn a_shape_without_an_operation_shows_no_start_point_and_one_with_an_operation_d
         "deleting the operation takes the start point away"
     );
 }
+
+// ---- the automation (MCP) server in the settings ----
+
+/// Clicks a widget in the settings window, scrolling it into view first: the window is a short
+/// scrolling area and the automation section lies below its fold.
+fn click_in_settings(h: &mut Harness<'static, App>, label: &str) {
+    h.get_by_label(label).scroll_to_me();
+    h.run_steps(3);
+    h.get_by_label(label).click_accesskit();
+    h.run_steps(3);
+}
+
+fn automation_app(status: crate::mcp::McpStatus) -> App {
+    let mut a = settings_app();
+    a.state.update_settings(|s| {
+        s.automation.mcp_enabled = true;
+        s.automation.mcp_token = "0123456789abcdef".to_owned();
+    });
+    a.set_mcp_status(status);
+    a
+}
+
+#[test]
+fn the_server_is_off_by_default_and_the_window_shows_nothing_else_about_it() {
+    let mut h = harness(settings_app());
+    h.run_steps(3);
+    assert_eq!(
+        h.get_by_label("Enable the MCP server")
+            .accesskit_node()
+            .toggled(),
+        Some(egui::accesskit::Toggled::False)
+    );
+    assert!(h.query_by_label("Port").is_none());
+    assert!(h.query_by_label("Access token:").is_none());
+}
+
+#[test]
+fn turning_the_server_on_makes_a_token_and_shows_the_options() {
+    let mut h = harness(settings_app());
+    h.run_steps(3);
+    click_in_settings(&mut h, "Enable the MCP server");
+    let settings = h.state().state.settings().automation.clone();
+    assert!(settings.mcp_enabled);
+    assert_eq!(settings.mcp_token.len(), 64, "a token was made");
+    h.get_by_label("Port");
+    h.get_by_label("Access token:");
+    h.get_by_label("Allow other computers on the network to connect");
+}
+
+#[test]
+fn the_addresses_to_connect_to_are_listed_once_the_server_listens() {
+    let status = crate::mcp::McpStatus::Listening {
+        urls: vec![
+            "http://192.168.1.20:8765/mcp".to_owned(),
+            "http://127.0.0.1:8765/mcp".to_owned(),
+        ],
+    };
+    let mut h = harness(automation_app(status));
+    h.run_steps(3);
+    h.get_by_label("http://192.168.1.20:8765/mcp");
+    h.get_by_label("http://127.0.0.1:8765/mcp");
+}
+
+#[test]
+fn a_server_that_could_not_start_says_why() {
+    let status = crate::mcp::McpStatus::Failed("cannot listen on port 8765: in use".to_owned());
+    let mut h = harness(automation_app(status));
+    h.run_steps(3);
+    h.get_by_label_contains("The server could not start: cannot listen on port 8765");
+}
+
+#[test]
+fn the_token_is_hidden_until_the_user_asks_to_see_it() {
+    let mut h = harness(automation_app(crate::mcp::McpStatus::Off));
+    h.run_steps(3);
+    assert!(
+        h.query_by_label("0123456789abcdef").is_none(),
+        "dots, not the token"
+    );
+    click_in_settings(&mut h, "Show token");
+    h.get_by_label("0123456789abcdef");
+    click_in_settings(&mut h, "Hide token");
+    assert!(h.query_by_label("0123456789abcdef").is_none());
+}
+
+#[test]
+fn a_new_token_replaces_the_old_one() {
+    let mut h = harness(automation_app(crate::mcp::McpStatus::Off));
+    h.run_steps(3);
+    click_in_settings(&mut h, "Make a new token");
+    let token = h.state().state.settings().automation.mcp_token.clone();
+    assert_eq!(token.len(), 64);
+    assert_ne!(token, "0123456789abcdef");
+}
+
+#[test]
+fn allowing_the_network_warns_that_the_token_is_all_that_protects_the_app() {
+    let mut h = harness(automation_app(crate::mcp::McpStatus::Off));
+    h.run_steps(3);
+    assert!(
+        h.query_by_label_contains("Anyone on your network")
+            .is_none(),
+        "no warning while it is local only"
+    );
+    click_in_settings(&mut h, "Allow other computers on the network to connect");
+    assert!(h.state().state.settings().automation.mcp_allow_network);
+    h.get_by_label_contains("Anyone on your network");
+}
+
+#[test]
+fn moving_the_machine_is_a_separate_choice_that_is_off_until_the_user_makes_it() {
+    let mut h = harness(automation_app(crate::mcp::McpStatus::Off));
+    h.run_steps(3);
+    assert!(!h.state().api_armed());
+    click_in_settings(
+        &mut h,
+        "Let the API move the machine until the app is closed",
+    );
+    assert!(h.state().api_armed());
+}

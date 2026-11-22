@@ -11,6 +11,7 @@ authoring tools, materials and machine profiles.
 | Add cutting/drawing settings for a material, or share a material pack | [Materials](materials.md) |
 | Describe a machine's size, holders, speeds and limits | [Machine profiles](profiles.md) |
 | Map colours/layers of an imported drawing to cuts, pens and scoring | [Mapping rules](mapping-rules.md) |
+| Drive the app from an AI assistant or a script | [Automation (MCP)](automation.md) |
 
 ## How the pieces relate
 

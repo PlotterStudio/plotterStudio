@@ -39,8 +39,9 @@ pub use schema::{
     Entry, Issue, check_material, check_profile, check_tool, group_by_file, schema_json, validate,
 };
 pub use settings::{
-    DecimalSeparator, DisplayUnits, GpuQuality, MAX_SCREEN_CALIBRATION, MIN_SCREEN_CALIBRATION,
-    Network, Settings, SettingsError, Theme, calibration_from_measurement,
+    Automation, DEFAULT_MCP_PORT, DecimalSeparator, DisplayUnits, GpuQuality,
+    MAX_SCREEN_CALIBRATION, MIN_SCREEN_CALIBRATION, Network, Settings, SettingsError, Theme,
+    calibration_from_measurement,
 };
 pub use snapshot::{LibrarySnapshot, ResolveError, ResolveWarning, Resolved};
 pub use store::{Library, Outcome, StoreError, Summary};

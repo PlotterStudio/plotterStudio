@@ -8,10 +8,15 @@ commits (see `cliff.toml`).
 ## [Unreleased]
 
 ### Added
+- An MCP server over streamable HTTP, turned on in **Settings → Automation** (off by default). It
+  listens on this computer only unless you allow the network, needs an access token, refuses
+  requests from other websites, and shows the addresses to connect to. Letting its tools move real
+  hardware is a separate checkbox. See `docs/automation.md`.
 - A log file, `logs/plotter-studio.<date>.log` in the data folder (seven days kept). Set
   `PLOTTER_STUDIO_LOG` to change the level, for example `debug`.
 
 ### Changed
+- The `--mcp` command-line option and its stdin/stdout transport are gone; the MCP server is HTTP only.
 - A library update that only raises a patch or minor version no longer puts a "version not found"
   warning on every older project; an older or a different major version still warns.
 

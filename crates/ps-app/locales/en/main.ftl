@@ -495,3 +495,22 @@ preview-orbit-hint = Drag the picture to turn it
 preview-failed = The job could not be built: { $why }
 text-cancel = Cancel
 node-menu = Node
+
+## Automation (MCP)
+settings-automation = Automation
+settings-automation-note = Lets an AI assistant or a script use Plotter Studio's tools over HTTP (the Model Context Protocol). Off until you turn it on.
+settings-mcp-enable = Enable the MCP server
+settings-mcp-port = Port
+settings-mcp-network = Allow other computers on the network to connect
+settings-mcp-network-note = Anyone on your network who has the access token can then use the app. Keep the token private.
+settings-mcp-listening = Connect your client to:
+settings-mcp-failed = The server could not start: { $reason }
+settings-mcp-token = Access token:
+settings-mcp-token-note = A client sends it as the header "Authorization: Bearer" followed by the token.
+settings-mcp-token-show = Show token
+settings-mcp-token-hide = Hide token
+settings-mcp-token-copy = Copy token
+settings-mcp-token-new = Make a new token
+settings-mcp-copy = Copy address
+settings-mcp-arm = Let the API move the machine until the app is closed
+settings-mcp-arm-note = Without this the tools prepare and simulate jobs but never move real hardware.

@@ -79,6 +79,7 @@ fn contents(ui: &mut egui::Ui, app: &mut App) {
     saving(ui, app);
     screen(ui, app);
     network(ui, app);
+    automation(ui, app);
 
     ui.separator();
     ui.strong(app.loc.tr("settings-shortcuts"));
@@ -269,6 +270,115 @@ fn network(ui: &mut egui::Ui, app: &mut App) {
             .update_settings(|s| s.network.material_index = index);
     }
     update_check_row(ui, app);
+}
+
+/// The automation server: whether it runs, where to connect, and the token clients need.
+fn automation(ui: &mut egui::Ui, app: &mut App) {
+    let automation = app.state.settings().automation.clone();
+    ui.separator();
+    ui.strong(app.loc.tr("settings-automation"));
+    ui.label(app.loc.tr("settings-automation-note"));
+    let mut enabled = automation.mcp_enabled;
+    if ui
+        .checkbox(&mut enabled, app.loc.tr("settings-mcp-enable"))
+        .changed()
+    {
+        app.state.update_settings(|s| {
+            s.automation.mcp_enabled = enabled;
+            if enabled && s.automation.mcp_token.is_empty() {
+                s.automation.mcp_token = crate::mcp::generate_token();
+            }
+        });
+    }
+    if !automation.mcp_enabled {
+        return;
+    }
+
+    ui.horizontal(|ui| {
+        let label = ui.label(app.loc.tr("settings-mcp-port"));
+        let mut port = automation.mcp_port;
+        if ui
+            .add(egui::DragValue::new(&mut port).range(1024..=u16::MAX))
+            .labelled_by(label.id)
+            .changed()
+        {
+            app.state.update_settings(|s| s.automation.mcp_port = port);
+        }
+    });
+    let mut network = automation.mcp_allow_network;
+    if ui
+        .checkbox(&mut network, app.loc.tr("settings-mcp-network"))
+        .changed()
+    {
+        app.state
+            .update_settings(|s| s.automation.mcp_allow_network = network);
+    }
+    if automation.mcp_allow_network {
+        ui.colored_label(
+            ui.visuals().warn_fg_color,
+            app.loc.tr("settings-mcp-network-note"),
+        );
+    }
+
+    match app.mcp_status().clone() {
+        crate::mcp::McpStatus::Off => {}
+        crate::mcp::McpStatus::Listening { urls } => {
+            ui.label(app.loc.tr("settings-mcp-listening"));
+            for url in urls {
+                ui.horizontal(|ui| {
+                    ui.monospace(&url);
+                    if ui.button(app.loc.tr("settings-mcp-copy")).clicked() {
+                        ui.ctx().copy_text(url.clone());
+                    }
+                });
+            }
+        }
+        crate::mcp::McpStatus::Failed(reason) => {
+            ui.colored_label(
+                ui.visuals().error_fg_color,
+                app.loc
+                    .tr_args("settings-mcp-failed", &[("reason", Arg::Text(&reason))]),
+            );
+        }
+    }
+
+    ui.horizontal(|ui| {
+        ui.label(app.loc.tr("settings-mcp-token"));
+        if app.mcp_token_shown {
+            ui.monospace(&automation.mcp_token);
+        } else {
+            ui.monospace("\u{2022}".repeat(16));
+        }
+    });
+    ui.horizontal(|ui| {
+        let toggle = if app.mcp_token_shown {
+            "settings-mcp-token-hide"
+        } else {
+            "settings-mcp-token-show"
+        };
+        if ui.button(app.loc.tr(toggle)).clicked() {
+            app.mcp_token_shown = !app.mcp_token_shown;
+        }
+        if ui.button(app.loc.tr("settings-mcp-token-copy")).clicked() {
+            ui.ctx().copy_text(automation.mcp_token.clone());
+        }
+        if ui.button(app.loc.tr("settings-mcp-token-new")).clicked() {
+            app.state
+                .update_settings(|s| s.automation.mcp_token = crate::mcp::generate_token());
+        }
+    });
+    ui.label(app.loc.tr("settings-mcp-token-note"));
+
+    // Whether the tools may move real hardware is the user's call, kept apart from the server and
+    // forgotten when the app closes; no tool can change it.
+    let mut armed = app.api_armed();
+    if ui
+        .checkbox(&mut armed, app.loc.tr("settings-mcp-arm"))
+        .changed()
+    {
+        app.arm_api(armed);
+    }
+    ui.label(app.loc.tr("settings-mcp-arm-note"));
 }
 
 fn shortcut_list(ui: &mut egui::Ui, app: &mut App) {

@@ -254,3 +254,49 @@ fn a_nonsense_measurement_is_refused() {
         assert_eq!(calibration_from_measurement(1.0, bad), None, "{bad}");
     }
 }
+
+#[test]
+fn the_automation_server_is_off_local_and_without_a_token_by_default() {
+    let a = Settings::default().automation;
+    assert!(!a.mcp_enabled);
+    assert!(
+        !a.mcp_allow_network,
+        "only this computer, until the user says otherwise"
+    );
+    assert_eq!(a.mcp_port, DEFAULT_MCP_PORT);
+    assert_eq!(a.mcp_token, "");
+}
+
+#[test]
+fn the_access_token_never_appears_in_debug_output() {
+    let mut s = Settings::default();
+    s.automation.mcp_token = "s3cret-token-value".to_owned();
+    let shown = format!("{s:?}");
+    assert!(!shown.contains("s3cret-token-value"), "{shown}");
+}
+
+#[test]
+fn the_automation_settings_round_trip_through_toml() {
+    let s = Settings {
+        automation: Automation {
+            mcp_enabled: true,
+            mcp_port: 9100,
+            mcp_allow_network: true,
+            mcp_token: "abc123".to_owned(),
+        },
+        ..Settings::default()
+    };
+    let text = s.to_toml().unwrap();
+    assert!(text.contains("[automation]"), "{text}");
+    assert_eq!(Settings::from_toml(&text).unwrap(), s);
+}
+
+#[test]
+fn a_port_the_app_should_not_listen_on_is_replaced_by_the_default() {
+    for port in [0_u16, 80, 1023] {
+        let s = Settings::from_toml(&format!("[automation]\nmcp_port = {port}\n")).unwrap();
+        assert_eq!(s.automation.mcp_port, DEFAULT_MCP_PORT, "port {port}");
+    }
+    let s = Settings::from_toml("[automation]\nmcp_port = 9100\n").unwrap();
+    assert_eq!(s.automation.mcp_port, 9100);
+}

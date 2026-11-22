@@ -9,7 +9,7 @@
 #![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
 
 use std::path::PathBuf;
-use std::sync::mpsc::Receiver;
+use std::sync::Arc;
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use ps_app::{
@@ -67,8 +67,12 @@ impl ProcessProbe for SystemProbe {
 
 struct Shell {
     app: App,
-    /// Requests from an MCP client on stdin (`--mcp`), served between frames.
-    mcp: Option<Receiver<mcp::Request>>,
+    /// The automation (MCP) server, started and stopped from the settings and served between
+    /// frames.
+    automation: mcp::AutomationHost,
+    /// Asks the window for a frame, so a client's request is answered promptly; made on the first
+    /// frame, when the window's context exists.
+    wake: Option<Arc<dyn Fn() + Send + Sync>>,
     started: Instant,
     settings_path: Option<PathBuf>,
     last_title: String,
@@ -95,11 +99,11 @@ impl eframe::App for Shell {
         self.app
             .state_mut()
             .set_display_dpi(96.0 * f64::from(ctx.pixels_per_point()));
-        if let Some(requests) = &self.mcp {
-            while let Ok(request) = requests.try_recv() {
-                request.serve(&mut self.app, unix_now_ms());
-            }
-        }
+        let wake = Arc::clone(self.wake.get_or_insert_with(|| {
+            let ctx = ctx.clone();
+            Arc::new(move || ctx.request_repaint())
+        }));
+        self.automation.update(&mut self.app, &wake, unix_now_ms());
         show(ctx, &mut self.app, now_ms);
         let effect = self.app.take_effect();
         handle_effect(&mut self.app, effect, &mut NativeDialogs, unix_now());
@@ -229,12 +233,9 @@ fn main() -> eframe::Result {
         guard = Some(g);
     }
 
-    // `--mcp` serves the automation API to an MCP client over stdin/stdout while the window is
-    // open (stdout then carries protocol messages only). Moving real hardware additionally needs
-    // `--arm-api`, which only a person can pass; no tool can set it.
-    let mcp = std::env::args()
-        .any(|a| a == "--mcp")
-        .then(mcp::spawn_stdio);
+    // The automation (MCP) server is turned on in the settings. Letting its tools move real
+    // hardware is a separate choice only a person can make: the checkbox there, or `--arm-api`.
+    // No tool can set it.
     if std::env::args().any(|a| a == "--arm-api") {
         app.arm_api(true);
     }
@@ -274,7 +275,8 @@ fn main() -> eframe::Result {
             }
             Ok(Box::new(Shell {
                 app,
-                mcp,
+                automation: mcp::AutomationHost::new(),
+                wake: None,
                 started: Instant::now(),
                 settings_path,
                 last_title: String::new(),

@@ -42,7 +42,11 @@ rfd.workspace = true
 sys-locale.workspace = true
 # Not used directly: enables the graphics backends eframe's wgpu renderer needs.
 wgpu.workspace = true
+getrandom.workspace = true
+if-addrs.workspace = true
+subtle.workspace = true
 thiserror.workspace = true
+tiny_http.workspace = true
 tracing.workspace = true
 tracing-appender.workspace = true
 tracing-subscriber.workspace = true

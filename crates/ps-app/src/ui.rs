@@ -56,6 +56,10 @@ pub struct App {
     pub(crate) machine: MachineController,
     /// Whether tool calls may move real hardware; only a person sets it.
     pub(crate) api_armed: bool,
+    /// How the automation server is doing, for the settings window.
+    pub(crate) mcp_status: crate::mcp::McpStatus,
+    /// Whether the access token is shown in the settings window instead of dots.
+    pub(crate) mcp_token_shown: bool,
     pub(crate) machine_open: bool,
     pub(crate) library: Option<crate::library_manager::LibraryManager>,
     pub(crate) library_open: bool,
@@ -141,6 +145,8 @@ impl App {
             notice: None,
             machine: MachineController::new(false),
             api_armed: false,
+            mcp_status: crate::mcp::McpStatus::Off,
+            mcp_token_shown: false,
             online: OnlineController::live(network),
             update_checked: false,
             machine_open: false,

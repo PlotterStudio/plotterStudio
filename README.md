@@ -19,9 +19,10 @@ in the loop.
   protocol, runs in a resource-limited sandbox, and can only touch the buses and hosts you
   approve. A GRBL plugin ships in this repository.
 - **Headless too:** the `pstudio` command line uses the same code as the app.
-- **Scriptable:** the app can serve its whole feature set to an
-  [MCP](https://modelcontextprotocol.io) client (`--mcp`); moving real hardware this way needs a
-  person to pass `--arm-api`.
+- **Scriptable:** turn on the MCP server in the settings and an AI assistant or script can use the
+  app's whole feature set over HTTP ([docs/automation.md](docs/automation.md)). It is off by
+  default, needs an access token, and moving real hardware this way needs a separate switch only
+  a person can flip.
 
 > **Status:** early (0.1). The compiler, importers and GUI are tested extensively; always do the
 > first cut of a new machine, tool or material on scrap, close to the e-stop.
@@ -85,7 +86,7 @@ Install a plugin by copying its `.psdevice` file into the app's plugins folder (
 | `crates/ps-device`, `crates/ps-device-sdk` | Plugin host, and helpers for plugin authors |
 | `crates/ps-nest`, `ps-render`, `ps-net` | Nesting, canvas rendering, opt-in network feeds |
 | `plugins/` | `grbl` (reference plugin) and `rogue` (sandbox test) |
-| `docs/` | Reference for plugin, tool, material and profile authors |
+| `docs/` | Reference for plugin, tool, material and profile authors, and the automation (MCP) guide |
 | `schemas/` | Published JSON Schemas for library files |
 | `fuzz/` | cargo-fuzz targets for every untrusted-file parser |
 | `xtask/` | Repository chores: `cargo xtask <check-boundaries \| check-schemas \| goldens \| licenses \| package>` |

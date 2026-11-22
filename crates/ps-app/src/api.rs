@@ -239,6 +239,17 @@ impl App {
     pub fn api_armed(&self) -> bool {
         self.api_armed
     }
+
+    /// How the automation server is doing.
+    #[must_use]
+    pub fn mcp_status(&self) -> &crate::mcp::McpStatus {
+        &self.mcp_status
+    }
+
+    /// Records how the automation server is doing, for the settings window to show.
+    pub fn set_mcp_status(&mut self, status: crate::mcp::McpStatus) {
+        self.mcp_status = status;
+    }
 }
 
 #[cfg(test)]
