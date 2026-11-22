@@ -47,12 +47,22 @@ fn export(name: &str) -> String {
     fs::read_to_string(out.path().join(format!("{name}-01.gcode"))).unwrap()
 }
 
-/// The first line names the app version; goldens must not change with every release.
+/// The header names the app version, and the job id is derived from it; goldens must not change
+/// with every release, so both are replaced by markers before comparing.
 fn without_version(text: &str) -> String {
-    text.replace(
-        concat!("; plotter-studio ", env!("CARGO_PKG_VERSION")),
-        "; plotter-studio VERSION",
-    )
+    text.lines()
+        .map(|line| {
+            if line.starts_with("; plotter-studio ") {
+                "; plotter-studio VERSION"
+            } else if line.starts_with("; job ") {
+                "; job JOB"
+            } else {
+                line
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+        + "\n"
 }
 
 fn check(name: &str) {

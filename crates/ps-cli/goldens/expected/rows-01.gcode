@@ -1,5 +1,5 @@
 ; plotter-studio VERSION
-; job job-9cb044d6e4fb5472
+; job JOB
 ; machine generic.cutter-small@1.0.0  mat 1/1 12x12in standard
 ; T1 pen.fineliner-black-0.4 holder A
 ; T2 generic.drag-blade holder B
