@@ -1,4 +1,4 @@
-; plotter-studio 0.1.0
+; plotter-studio VERSION
 ; job job-c37bb58a16aba029
 ; machine generic.cutter-small@1.0.0  mat 1/1 12x12in standard
 ; T1 pen.fineliner-black-0.4 holder A

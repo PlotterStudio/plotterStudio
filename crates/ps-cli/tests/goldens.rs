@@ -47,8 +47,16 @@ fn export(name: &str) -> String {
     fs::read_to_string(out.path().join(format!("{name}-01.gcode"))).unwrap()
 }
 
+/// The first line names the app version; goldens must not change with every release.
+fn without_version(text: &str) -> String {
+    text.replace(
+        concat!("; plotter-studio ", env!("CARGO_PKG_VERSION")),
+        "; plotter-studio VERSION",
+    )
+}
+
 fn check(name: &str) {
-    let got = export(name);
+    let got = without_version(&export(name));
     let expected_path = root().join("expected").join(format!("{name}-01.gcode"));
     if std::env::var_os("PS_BLESS").is_some() {
         fs::write(&expected_path, &got).unwrap();
