@@ -24,6 +24,9 @@ commits (see `cliff.toml`).
   "Rendering…".
 - Speed and force sliders end at what the machine can do, not at the tool's own limit.
 - Start points are no longer drawn on shapes that have no operation.
+- On Windows the executables carry the application icon (Explorer, shortcuts and the taskbar showed
+  a generic one), the window shows it instead of the toolkit's default, and `plotter-studio.exe`
+  no longer opens a command-line window that closes the app with it.
 
 ## [0.1.0] - 2026-11-22
 

@@ -4,6 +4,10 @@
 //! native file choosers, runs autosave and crash recovery, and hands the library the frame time
 //! and the display density.
 
+// A release build on Windows is a window program: without this it is a console program, and
+// double-clicking it (or its shortcut) opens a command-line window that closes the app with it.
+#![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
+
 use std::path::PathBuf;
 use std::sync::mpsc::Receiver;
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
@@ -165,6 +169,11 @@ fn install_panic_hook(state_dir: PathBuf, snapshot: Snapshot) {
     }));
 }
 
+/// The icon in the window's title bar and the taskbar; without one eframe shows its own.
+fn window_icon() -> Option<egui::IconData> {
+    eframe::icon_data::from_png_bytes(include_bytes!("../icons/icon-256.png")).ok()
+}
+
 fn main() -> eframe::Result {
     // Kept until the program ends, so the last lines reach the file.
     let _log = ps_library::default_log_dir().and_then(|dir| ps_app::logging::init(&dir));
@@ -244,10 +253,14 @@ fn main() -> eframe::Result {
         }
     }
 
+    let mut viewport = egui::ViewportBuilder::default()
+        .with_inner_size([1280.0, 800.0])
+        .with_title("Plotter Studio");
+    if let Some(icon) = window_icon() {
+        viewport = viewport.with_icon(icon);
+    }
     let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default()
-            .with_inner_size([1280.0, 800.0])
-            .with_title("Plotter Studio"),
+        viewport,
         renderer: eframe::Renderer::Wgpu,
         ..eframe::NativeOptions::default()
     };
@@ -271,4 +284,19 @@ fn main() -> eframe::Result {
             }))
         }),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::window_icon;
+
+    #[test]
+    fn the_window_has_its_own_icon_not_the_toolkit_default() {
+        let icon = window_icon().expect("the embedded icon decodes");
+        assert_eq!((icon.width, icon.height), (256, 256));
+        assert!(
+            icon.rgba.as_chunks::<4>().0.iter().any(|px| px[3] > 0),
+            "the picture is not empty"
+        );
+    }
 }

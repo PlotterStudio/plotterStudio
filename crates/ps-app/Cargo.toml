@@ -55,5 +55,8 @@ tempfile.workspace = true
 egui_kittest.workspace = true
 memory-stats.workspace = true
 
+[target.'cfg(windows)'.build-dependencies]
+winresource.workspace = true
+
 [lints]
 workspace = true
