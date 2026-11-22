@@ -5,6 +5,7 @@ product-name = "Plotter Studio"
 identifier = "io.github.plotter-studio"
 version = "0.1.0"
 description = "Design and cut with plotters and cutting machines, without a cloud."
+category = "Graphics and Design"
 authors = ["Plotter Studio contributors"]
 license-file = "../../LICENSE"
 # Paths are read relative to this file. The binaries are built into the workspace's target

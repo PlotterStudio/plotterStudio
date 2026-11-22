@@ -32,6 +32,8 @@ commits (see `cliff.toml`).
 - On Windows the executables carry the application icon (Explorer, shortcuts and the taskbar showed
   a generic one), the window shows it instead of the toolkit's default, and `plotter-studio.exe`
   no longer opens a command-line window that closes the app with it.
+- On Linux the window now announces the application id `plotter-studio`, so desktops (Wayland in
+  particular) can match it to its installed icon, and the menu entry has a category.
 
 ## [0.1.0] - 2026-11-22
 

@@ -173,6 +173,9 @@ fn install_panic_hook(state_dir: PathBuf, snapshot: Snapshot) {
     }));
 }
 
+/// The application id: the name of the installed `.desktop` file and of the executable.
+const APP_ID: &str = "plotter-studio";
+
 /// The icon in the window's title bar and the taskbar; without one eframe shows its own.
 fn window_icon() -> Option<egui::IconData> {
     eframe::icon_data::from_png_bytes(include_bytes!("../icons/icon-256.png")).ok()
@@ -254,9 +257,12 @@ fn main() -> eframe::Result {
         }
     }
 
+    // The application id must match the desktop entry's file name (`plotter-studio.desktop`): it is
+    // how Linux desktops, Wayland above all, find the window's icon and group its windows.
     let mut viewport = egui::ViewportBuilder::default()
         .with_inner_size([1280.0, 800.0])
-        .with_title("Plotter Studio");
+        .with_title("Plotter Studio")
+        .with_app_id(APP_ID);
     if let Some(icon) = window_icon() {
         viewport = viewport.with_icon(icon);
     }
@@ -290,7 +296,13 @@ fn main() -> eframe::Result {
 
 #[cfg(test)]
 mod tests {
-    use super::window_icon;
+    use super::{APP_ID, window_icon};
+
+    #[test]
+    fn the_application_id_is_the_executables_name_so_the_desktop_entry_matches() {
+        // The packager names the `.desktop` file and its icon after the executable.
+        assert_eq!(APP_ID, env!("CARGO_BIN_NAME"));
+    }
 
     #[test]
     fn the_window_has_its_own_icon_not_the_toolkit_default() {
