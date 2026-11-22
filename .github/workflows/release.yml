@@ -2,10 +2,13 @@ name: Release
 
 # Runs on a version tag: builds, signs and packages Windows, macOS (universal) and Linux, then
 # prepares a draft GitHub Release with checksums, signatures, an SBOM and build provenance
-#. The release stays a draft until a maintainer has run the hardware smoke checklist.
+# The release stays a draft until a maintainer has run the hardware smoke checklist.
 on:
   push:
     tags: ["v*"]
+  # A dry run: builds, signs (when the secrets exist) and packages everything, uploads the
+  # artefacts to the workflow run, and publishes nothing.
+  workflow_dispatch:
 
 env:
   CARGO_TERM_COLOR: always
@@ -58,7 +61,7 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
-      - run: sudo apt-get update && sudo apt-get install -y libudev-dev pkg-config libxkbcommon-dev libwayland-dev libx11-dev libxcursor-dev libxrandr-dev libxi-dev libvulkan-dev
+      - run: sudo apt-get update && sudo apt-get install -y libudev-dev libdbus-1-dev pkg-config libxkbcommon-dev libwayland-dev libx11-dev libxcursor-dev libxrandr-dev libxi-dev libvulkan-dev
       - run: rustup toolchain install
       - uses: Swatinem/rust-cache@v2
       - run: cargo build --release --locked -p ps-app -p ps-cli
@@ -76,14 +79,18 @@ jobs:
   sign-macos:
     needs: [build-macos]
     runs-on: ubuntu-22.04
+    env:
+      HAVE_APPLE_SECRETS: ${{ secrets.APPLE_DEVELOPER_ID_P12 != '' }}
     steps:
       - uses: actions/download-artifact@v4
         with:
           name: macos-unsigned
           path: dist
       # notarise -> staple -> sign .dmg, with the Developer ID certificate and an App Store
-      # Connect API key from the repository secrets.
-      - uses: indygreg/apple-code-sign-action@v1
+      # Connect API key from the repository secrets. Without them the .dmg passes through
+      # unsigned (users must right-click -> Open the first time).
+      - if: env.HAVE_APPLE_SECRETS == 'true'
+        uses: indygreg/apple-code-sign-action@v1
         with:
           input_path: dist
           p12_file: ${{ secrets.APPLE_DEVELOPER_ID_P12 }}
@@ -124,14 +131,15 @@ jobs:
   sign-linux:
     needs: [build-linux]
     runs-on: ubuntu-22.04
+    env:
+      MINISIGN_KEY: ${{ secrets.MINISIGN_SECRET_KEY }}
     steps:
       - uses: actions/download-artifact@v4
         with:
           name: linux-unsigned
           path: dist
       - name: minisign over every artefact
-        env:
-          MINISIGN_KEY: ${{ secrets.MINISIGN_SECRET_KEY }}
+        if: env.MINISIGN_KEY != ''
         run: |
           sudo apt-get update && sudo apt-get install -y minisign
           echo "$MINISIGN_KEY" > key.sec
@@ -160,14 +168,27 @@ jobs:
         run: |
           cd dist
           sha256sum * > SHA256SUMS
-          sudo apt-get update && sudo apt-get install -y minisign
-          echo "$MINISIGN_KEY" > ../key.sec
-          minisign -S -s ../key.sec -m SHA256SUMS
-      - uses: actions/attest-build-provenance@v1
+          if [ -n "$MINISIGN_KEY" ]; then
+            sudo apt-get update && sudo apt-get install -y minisign
+            echo "$MINISIGN_KEY" > ../key.sec
+            minisign -S -s ../key.sec -m SHA256SUMS
+            rm ../key.sec
+          fi
+      - name: Keep the artefacts of a dry run
+        if: github.ref_type != 'tag'
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-dry-run
+          path: |
+            dist/*
+            **/*.cdx.json
+      - if: github.ref_type == 'tag'
+        uses: actions/attest-build-provenance@v1
         with:
           subject-path: dist/*
       - name: A draft release for a maintainer to publish after the hardware smoke checklist
+        if: github.ref_type == 'tag'
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
-        run: gh release create "$TAG" --draft --notes-file CHANGELOG.md dist/* **/*.cdx.json
+        run: gh release create "$TAG" --draft --notes-file CHANGELOG.md dist/* $(find . -name '*.cdx.json' -not -path './target/*')

@@ -41,7 +41,7 @@ the plugins:
 rustup target add wasm32-wasip2
 ```
 
-On Linux also install `libudev-dev pkg-config libxkbcommon-dev libwayland-dev libx11-dev
+On Linux also install `libudev-dev libdbus-1-dev pkg-config libxkbcommon-dev libwayland-dev libx11-dev
 libxcursor-dev libxrandr-dev libxi-dev libvulkan-dev`.
 
 ```sh

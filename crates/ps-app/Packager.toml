@@ -29,7 +29,7 @@ mime-type = "application/vnd.plotter-studio.job+zip"
 installer-mode = "currentUser"
 
 [deb]
-depends = ["libxkbcommon0", "libvulkan1"]
+depends = ["libxkbcommon0", "libvulkan1", "libdbus-1-3"]
 
 [macos]
 # Usage strings for the Bluetooth and local network permissions, and the Bonjour services the
