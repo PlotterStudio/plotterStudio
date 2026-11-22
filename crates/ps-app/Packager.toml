@@ -1,5 +1,5 @@
-# cargo-packager configuration: one configuration produces the .app/.dmg, the NSIS and
-# WiX installers, the AppImage and the .deb, and registers the file associations.
+# cargo-packager configuration: one configuration produces the .app/.dmg, the NSIS installer,
+# the AppImage and the .deb, and registers the file associations.
 name = "ps-app"
 product-name = "Plotter Studio"
 identifier = "io.github.plotter-studio"
@@ -16,7 +16,7 @@ binaries = [
   { path = "plotter-studio", main = true },
   { path = "pstudio" },
 ]
-formats = ["nsis", "wix", "dmg", "appimage", "deb"]
+formats = ["nsis", "dmg", "appimage", "deb"]
 icons = ["icons/icon-32.png", "icons/icon-128.png", "icons/icon-256.png", "icons/icon.icns", "icons/icon.ico"]
 
 [[file-associations]]

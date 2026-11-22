@@ -16,6 +16,9 @@ commits (see `cliff.toml`).
   `PLOTTER_STUDIO_LOG` to change the level, for example `debug`.
 
 ### Changed
+- Releases attach less: one Windows installer (NSIS, no administrator rights needed) instead of two,
+  and no per-crate software bills of materials. The portable `plotter-studio.exe` and `pstudio.exe`
+  stay.
 - The `--mcp` command-line option and its stdin/stdout transport are gone; the MCP server is HTTP only.
 - A library update that only raises a patch or minor version no longer puts a "version not found"
   warning on every older project; an older or a different major version still warns.

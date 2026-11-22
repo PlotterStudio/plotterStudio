@@ -1,6 +1,6 @@
 //! Ground truth for the CI and release workflows. The three workflows exist, parse, and
 //! carry the checks the design lists: lint, tests on three systems, the boundary and schema
-//! checks, a signed release on `v*` tags with checksums, provenance and an SBOM, and a nightly
+//! checks, a signed release on `v*` tags with checksums and provenance, and a nightly
 //! with long property tests. Every cargo build uses the committed lockfile.
 
 use std::path::Path;
@@ -158,8 +158,26 @@ fn publishing_waits_for_the_signing_jobs_and_makes_a_draft_release_with_provenan
     assert!(text.contains("SHA256SUMS"));
     assert!(text.contains("minisign"));
     assert!(text.contains("actions/attest-build-provenance"));
-    assert!(text.contains("cargo cyclonedx"));
     assert!(text.contains("gh release create") && text.contains("--draft"));
+}
+
+/// What users download is the installer for each system and the plain executables, with the
+/// checksums. Build by-products (a second Windows installer, one SBOM per crate) are not attached.
+#[test]
+fn the_release_attaches_only_what_people_download() {
+    let text = text_of("release.yml");
+    assert!(
+        text.contains("--formats nsis") && !text.contains("nsis,"),
+        "one Windows installer, built with NSIS"
+    );
+    for unwanted in [".msi", "wix", "cdx.json", "cyclonedx"] {
+        assert!(
+            !text.contains(unwanted),
+            "the release does not carry {unwanted}"
+        );
+    }
+    let config = std::fs::read_to_string(root().join("crates/ps-app/Packager.toml")).unwrap();
+    assert!(!config.contains("wix"), "no second Windows installer");
 }
 
 #[test]
@@ -209,7 +227,7 @@ fn windows_builds_link_the_c_runtime_statically() {
 fn the_packager_configuration_registers_the_file_types() {
     let text = std::fs::read_to_string(root().join("crates/ps-app/Packager.toml")).unwrap();
     assert!(text.contains("pstudio") && text.contains("psjob"));
-    for format in ["nsis", "wix", "dmg", "appimage", "deb"] {
+    for format in ["nsis", "dmg", "appimage", "deb"] {
         assert!(text.contains(format), "{format}");
     }
 }

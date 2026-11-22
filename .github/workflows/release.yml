@@ -1,7 +1,7 @@
 name: Release
 
 # Runs on a version tag: builds, signs and packages Windows, macOS (universal) and Linux, then
-# prepares a draft GitHub Release with checksums, signatures, an SBOM and build provenance
+# prepares a draft GitHub Release with checksums, signatures and build provenance
 # The release stays a draft until a maintainer has run the hardware smoke checklist.
 on:
   push:
@@ -28,13 +28,11 @@ jobs:
       # No --target: the packager reads the binaries from target/release.
       - run: cargo build --release --locked -p ps-app -p ps-cli
       - run: cargo install cargo-packager --locked
-      - run: cargo packager --release -p ps-app --formats nsis,wix
+      - run: cargo packager --release -p ps-app --formats nsis
       - uses: actions/upload-artifact@v4
         with:
           name: windows-unsigned
-          path: |
-            target/release/*.exe
-            target/release/*.msi
+          path: target/release/*.exe
 
   build-macos:
     runs-on: macos-15
@@ -122,8 +120,8 @@ jobs:
         with:
           name: windows-unsigned
           path: dist
-      # SignPath signs the .exe, then the NSIS installer and the .msi. Until the foundation
-      # approves the project, releases ship unsigned with checksums.
+      # SignPath signs the .exe files and the NSIS installer. Until the foundation approves the
+      # project, releases ship unsigned with checksums.
       - uses: signpath/github-action-submit-signing-request@v1
         continue-on-error: true
         with:
@@ -170,9 +168,6 @@ jobs:
           path: dist
           merge-multiple: true
       - run: rustup toolchain install
-      - run: cargo install cargo-cyclonedx --locked
-      # JSON, not the default XML: the release collects *.cdx.json.
-      - run: cargo cyclonedx --all --format json
       - name: Checksums and their signature
         env:
           MINISIGN_KEY: ${{ secrets.MINISIGN_SECRET_KEY }}
@@ -194,9 +189,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: release-dry-run
-          path: |
-            dist/*
-            **/*.cdx.json
+          path: dist/*
       # Artefact attestations exist only for public repositories (or paid private ones), so this
       # switches itself on when the repository is opened.
       - if: github.ref_type == 'tag' && !github.event.repository.private
@@ -220,4 +213,4 @@ jobs:
             exit 1
           fi
           gh release create "$TAG" --draft --title "Plotter Studio $VERSION" \
-            --notes-file release-notes.md dist/* $(find . -name '*.cdx.json' -not -path './target/*')
+            --notes-file release-notes.md dist/*
