@@ -458,10 +458,26 @@ Also add tests in `crates/ps-device` for non-trivial plugins, following `wasm/te
 
 ### 7. Install
 
-Copy the `.psdevice` into the plugins folder under the data directory
-(`ps_library::default_plugins_dir()`; on Windows `%APPDATA%\PlotterStudio\data\plugins\`). A
-plugin built before the `discover` export existed will not load; rebuild with the current WIT.
-Then press refresh in the app.
+Open **Settings → Device plugins** and either press **Install from file…** and pick the
+`.psdevice`, or paste a link to one (it must be `https`) and press **Download and install**. The
+app checks that the file is a plugin, copies it into the plugins folder for you, and makes it
+available at once; then press refresh in the machine panel.
+
+What to know when you distribute a plugin this way:
+
+- A link needs no internet opt-in in the settings, because the person typing it is the consent.
+  It is the one request the app makes that no switch controls, and nothing vouches for the file
+  (unlike the signed material index), so only share links people can trust.
+- The download is limited to 17 MiB.
+- Installing a plugin whose id is already running replaces its file but keeps the old copy
+  running; the app says to restart it to use the new one.
+- The file is stored as `<id>.psdevice`, and any older file for the same id is removed so it does
+  not load twice. No plugin or automation tool can install a plugin: only the settings window.
+
+Installing is only copying into the plugins folder
+(`ps_library::default_plugins_dir()`; on Windows `%APPDATA%\PlotterStudio\data\plugins\`), which
+is still read at start-up, so copying a file there by hand keeps working. A plugin built before
+the `discover` export existed will not load; rebuild with the current WIT.
 
 ### Plugins in their own repository
 

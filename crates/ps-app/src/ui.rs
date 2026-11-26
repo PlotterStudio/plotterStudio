@@ -83,6 +83,12 @@ pub struct App {
     pub(crate) gpu_format: Option<wgpu::TextureFormat>,
     pub(crate) online: OnlineController,
     pub(crate) update_checked: bool,
+    /// The folder plugins are installed into, once the app knows it.
+    pub(crate) plugins_dir: Option<std::path::PathBuf>,
+    /// What the link box in the plugins settings holds.
+    pub(crate) plugin_url: String,
+    /// How the last plugin install went.
+    pub(crate) plugin_status: Option<plugin_section::PluginStatus>,
     pub(crate) recovery: Option<ps_model::AutosaveEntry>,
     pub(crate) applied_theme: Option<ps_library::Theme>,
     /// Whether the mat has been fitted to the canvas once, now that the canvas has a size.
@@ -149,6 +155,9 @@ impl App {
             mcp_token_shown: false,
             online: OnlineController::live(network),
             update_checked: false,
+            plugins_dir: None,
+            plugin_url: String::new(),
+            plugin_status: None,
             machine_open: false,
             library: None,
             library_open: false,
@@ -225,7 +234,9 @@ impl App {
     }
 
     /// Installs the device plugins in `dir`, and tells the user about any that cannot be used.
+    /// Plugins the user installs later from the settings are copied into this folder.
     pub fn install_plugins(&mut self, dir: &std::path::Path) {
+        self.plugins_dir = Some(dir.to_path_buf());
         let load = self.machine.install_plugins(dir);
         if !load.problems.is_empty() {
             self.notice = Some(format!("Plugins not loaded: {}", load.problems.join("; ")));
@@ -349,6 +360,7 @@ pub fn show(ctx: &egui::Context, app: &mut App, now_ms: u64) {
     app.online.set_network(network);
     app.online.poll();
     app.finish_download();
+    app.finish_plugin_download();
     let ready = app.machine.is_ready();
     app.state.set_device_ready(ready);
     handle_keys(ctx, app, now_ms);
@@ -1531,6 +1543,7 @@ mod extras;
 mod gpu_callback;
 mod library_window;
 mod machine_panel;
+mod plugin_section;
 mod rulers;
 mod screens;
 mod settings_window;

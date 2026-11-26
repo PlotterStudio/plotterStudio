@@ -242,3 +242,55 @@ fn only_one_download_runs_at_a_time() {
     assert_eq!(c.download_package(&entry), Err(OnlineError::Busy));
     wait(&mut c, |c| !c.downloading());
 }
+
+// ---- a plugin from a link the user typed ----
+
+#[test]
+fn a_plugin_link_is_downloaded_even_with_the_internet_features_off() {
+    let mut fake = Fake::default();
+    fake.pages
+        .insert("https://example.org/a.psdevice".into(), b"zip".to_vec());
+    let (mut c, client) = online(fake, Network::default());
+    c.download_plugin("https://example.org/a.psdevice").unwrap();
+    assert!(c.plugin_downloading());
+    wait(&mut c, |c| !c.plugin_downloading());
+    assert_eq!(c.take_plugin(), Some(Ok(b"zip".to_vec())));
+    assert_eq!(c.take_plugin(), None, "taken once");
+    assert_eq!(client.asked.lock().unwrap().len(), 1);
+}
+
+#[test]
+fn a_failed_plugin_download_is_reported_and_is_not_confused_with_the_update_check() {
+    let (mut c, _) = online(Fake::default(), Network::default());
+    c.download_plugin("https://example.org/missing.psdevice")
+        .unwrap();
+    wait(&mut c, |c| !c.plugin_downloading());
+    let Some(Err(why)) = c.take_plugin() else {
+        panic!("expected a failure");
+    };
+    assert!(why.contains("404"), "{why}");
+    assert_eq!(c.last_error(), None, "the update row shows nothing");
+}
+
+#[test]
+fn a_plugin_link_that_is_not_https_is_refused_in_the_background_too() {
+    let (mut c, client) = online(Fake::default(), Network::default());
+    c.download_plugin("http://example.org/a.psdevice").unwrap();
+    wait(&mut c, |c| !c.plugin_downloading());
+    assert!(matches!(c.take_plugin(), Some(Err(_))));
+    assert!(client.asked.lock().unwrap().is_empty());
+}
+
+#[test]
+fn only_one_plugin_download_runs_at_a_time() {
+    let mut fake = Fake::default();
+    fake.pages
+        .insert("https://example.org/a.psdevice".into(), b"x".to_vec());
+    let (mut c, _) = online(fake, Network::default());
+    c.download_plugin("https://example.org/a.psdevice").unwrap();
+    assert_eq!(
+        c.download_plugin("https://example.org/a.psdevice"),
+        Err(OnlineError::Busy)
+    );
+    wait(&mut c, |c| !c.plugin_downloading());
+}

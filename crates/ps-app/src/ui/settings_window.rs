@@ -80,6 +80,7 @@ fn contents(ui: &mut egui::Ui, app: &mut App) {
     screen(ui, app);
     network(ui, app);
     automation(ui, app);
+    super::plugin_section::plugins(ui, app);
 
     ui.separator();
     ui.strong(app.loc.tr("settings-shortcuts"));

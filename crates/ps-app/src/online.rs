@@ -61,6 +61,18 @@ enum Message {
     Update(Result<Option<Release>, NetError>),
     Index(Result<MaterialIndex, NetError>),
     Package(Result<(String, Vec<u8>), NetError>),
+    Plugin(Result<Vec<u8>, NetError>),
+}
+
+/// Where a plugin download is.
+#[derive(Debug, PartialEq, Eq)]
+enum PluginDownload {
+    /// None is running and no result is waiting.
+    Idle,
+    /// A request is in flight.
+    Running,
+    /// It finished: the package, or why it failed. Waits to be taken.
+    Finished(Result<Vec<u8>, String>),
 }
 
 /// Runs the opt-in internet requests off the UI thread.
@@ -78,6 +90,7 @@ pub struct OnlineController {
     refreshing: bool,
     downloading: bool,
     package: Option<(String, Vec<u8>)>,
+    plugin: PluginDownload,
     tx: Sender<Message>,
     rx: Receiver<Message>,
 }
@@ -118,6 +131,7 @@ impl OnlineController {
             refreshing: false,
             downloading: false,
             package: None,
+            plugin: PluginDownload::Idle,
             tx,
             rx,
         }
@@ -209,6 +223,45 @@ impl OnlineController {
         Ok(())
     }
 
+    /// Downloads a device plugin from a link the user typed, in the background. This needs no
+    /// opt-in: the user asking for this one link is the consent. The bytes are unverified, so
+    /// whoever takes them with [`take_plugin`](Self::take_plugin) must check them like a file the
+    /// user picked.
+    ///
+    /// # Errors
+    ///
+    /// [`OnlineError::Busy`] when a plugin download is already running.
+    pub fn download_plugin(&mut self, url: &str) -> Result<(), OnlineError> {
+        if self.plugin == PluginDownload::Running {
+            return Err(OnlineError::Busy);
+        }
+        self.plugin = PluginDownload::Running;
+        let net = Net::new(Shared(Arc::clone(&self.client)), self.network);
+        let (url, tx) = (url.to_owned(), self.tx.clone());
+        std::thread::spawn(move || {
+            let _ = tx.send(Message::Plugin(net.fetch_plugin(&url)));
+        });
+        Ok(())
+    }
+
+    /// The result of a finished plugin download, once: the package, or why it failed.
+    pub fn take_plugin(&mut self) -> Option<Result<Vec<u8>, String>> {
+        match std::mem::replace(&mut self.plugin, PluginDownload::Idle) {
+            PluginDownload::Finished(result) => Some(result),
+            // Nothing to take: put the state back as it was.
+            unchanged => {
+                self.plugin = unchanged;
+                None
+            }
+        }
+    }
+
+    /// Whether a plugin download is running.
+    #[must_use]
+    pub fn plugin_downloading(&self) -> bool {
+        self.plugin == PluginDownload::Running
+    }
+
     /// Supplies a verified index without a network request, for tests.
     #[cfg(test)]
     pub(crate) fn use_index_for_tests(&mut self, index: MaterialIndex) {
@@ -249,6 +302,9 @@ impl OnlineController {
                         }
                         Err(e) => self.last_error = Some(e.to_string()),
                     }
+                }
+                Message::Plugin(result) => {
+                    self.plugin = PluginDownload::Finished(result.map_err(|e| e.to_string()));
                 }
                 Message::Index(result) => {
                     self.refreshing = false;

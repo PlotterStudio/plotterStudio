@@ -51,6 +51,12 @@ impl Dialogs for NativeDialogs {
             .add_filter("Material package", &["psmaterials", "zip"])
             .pick_file()
     }
+
+    fn pick_plugin(&mut self) -> Option<PathBuf> {
+        rfd::FileDialog::new()
+            .add_filter("Device plugin", &["psdevice"])
+            .pick_file()
+    }
 }
 
 /// Asks the operating system whether a process is running.

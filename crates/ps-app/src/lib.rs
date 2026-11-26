@@ -20,6 +20,7 @@ mod machine;
 pub mod mcp;
 mod numfmt;
 mod online;
+mod plugin_install;
 mod project_io;
 mod selection;
 mod session;

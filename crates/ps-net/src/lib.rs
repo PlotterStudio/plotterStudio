@@ -1,11 +1,14 @@
 //! Plotter Studio's only door to the internet.
 //!
-//! Exactly two operations exist: [`Net::check_for_update`] reads the release feed, and
+//! Three operations exist: [`Net::check_for_update`] reads the release feed,
 //! [`Net::fetch_material_index`] plus [`Net::fetch_package`] read the signed material index and
-//! its packages. Both are off until the user opts in (the [`Network`] settings), only `https`
+//! its packages, and [`Net::fetch_plugin`] downloads a device plugin from a link the user typed.
+//! The first two are off until the user opts in (the [`Network`] settings); the third happens only
+//! when the user asks for that one link, so it has no standing opt-in. Only `https`
 //! URLs are fetched, every download is size-limited, the index must carry a valid minisign
 //! signature from the key the app trusts, and each package must match the SHA-256 in the signed
-//! index. No identifiers, counters or telemetry are sent: a request is a plain `GET`.
+//! index. A plugin from a typed link has no signature to check: the caller must treat it as
+//! untrusted. No identifiers, counters or telemetry are sent: a request is a plain `GET`.
 //!
 //! Only `ps-app` may depend on this crate; an `xtask` check enforces it.
 
@@ -19,6 +22,10 @@ use sha2::{Digest, Sha256};
 
 /// The most bytes read for a feed or an index.
 pub const MAX_METADATA_BYTES: usize = 2 * 1024 * 1024;
+
+/// The most bytes read for a device plugin: the 16 MiB the host allows a component, plus room for
+/// the package around it.
+pub const MAX_PLUGIN_DOWNLOAD_BYTES: usize = 17 * 1024 * 1024;
 
 /// An opt-in internet feature.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -360,6 +367,20 @@ impl<C: Http> Net<C> {
             generated: parsed.generated,
             packages: parsed.packages,
         })
+    }
+
+    /// Downloads the device plugin package at `url`, a link the user chose to install from. Never
+    /// reads more than [`MAX_PLUGIN_DOWNLOAD_BYTES`]. Unlike the other operations this needs no
+    /// opt-in, because the user asking for this one link is the consent; nothing vouches for the
+    /// bytes, so the caller must check them like any file the user picked.
+    ///
+    /// # Errors
+    ///
+    /// [`NetError`] when the URL is not https, the request fails, or the file is too large.
+    pub fn fetch_plugin(&self, url: &str) -> Result<Vec<u8>, NetError> {
+        let url = url.trim();
+        require_https(url)?;
+        Ok(self.client.get(url, MAX_PLUGIN_DOWNLOAD_BYTES)?)
     }
 
     /// Downloads a package listed in a verified index and checks it against the signed hash.

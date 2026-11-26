@@ -1,6 +1,6 @@
-//! Ground truth for ps-net. It exposes exactly two operations: fetch the release
-//! feed, and fetch the signed material index and its packages. Both are off until the user opts
-//! in. Signatures are real minisign signatures made by the `minisign` crate, an implementation
+//! Ground truth for ps-net. It exposes three operations: fetch the release
+//! feed, fetch the signed material index and its packages, and fetch a device plugin from a link
+//! the user typed. The first two are off until the user opts in. Signatures are real minisign signatures made by the `minisign` crate, an implementation
 //! independent of the verifier under test. Nothing here touches the network: a fake client
 //! stands in for HTTP.
 
@@ -577,4 +577,61 @@ fn the_index_entry_carries_category_brand_machines_and_tools_when_given() {
     assert_eq!((p.category.as_str(), p.brand.as_str()), ("vinyl", "Acme"));
     assert_eq!(p.machines, vec!["generic.cutter-small"]);
     assert_eq!(p.tools, vec!["generic.drag-blade"]);
+}
+
+// ---- a plugin from a link the user typed ----
+
+#[test]
+fn a_plugin_link_is_fetched_even_with_every_opt_in_off() {
+    let net = Net::new(
+        Fake::default().with("https://example.org/acme.psdevice", b"plugin".to_vec()),
+        Network::default(),
+    );
+    assert_eq!(
+        net.fetch_plugin("https://example.org/acme.psdevice")
+            .unwrap(),
+        b"plugin"
+    );
+}
+
+#[test]
+fn a_plugin_link_is_trimmed_of_pasted_whitespace() {
+    let net = Net::new(
+        Fake::default().with("https://example.org/a.psdevice", b"x".to_vec()),
+        Network::default(),
+    );
+    assert!(
+        net.fetch_plugin("  https://example.org/a.psdevice\n")
+            .is_ok()
+    );
+}
+
+#[test]
+fn a_plugin_link_that_is_not_https_is_refused_without_a_request() {
+    let net = Net::new(Fake::default(), Network::default());
+    for url in [
+        "http://example.org/a.psdevice",
+        "ftp://example.org/a",
+        "a.psdevice",
+        "",
+    ] {
+        assert!(
+            matches!(net.fetch_plugin(url), Err(NetError::InsecureUrl(_))),
+            "{url:?}"
+        );
+    }
+    assert_eq!(net.client().asked().len(), 0, "no request was made");
+}
+
+#[test]
+fn a_plugin_larger_than_the_limit_is_refused() {
+    let big = vec![0_u8; MAX_PLUGIN_DOWNLOAD_BYTES + 1];
+    let net = Net::new(
+        Fake::default().with("https://example.org/big.psdevice", big),
+        Network::default(),
+    );
+    assert_eq!(
+        net.fetch_plugin("https://example.org/big.psdevice"),
+        Err(NetError::Http(HttpError::TooLarge))
+    );
 }

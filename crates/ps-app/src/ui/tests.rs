@@ -68,6 +68,9 @@ impl crate::shell::Dialogs for NoDialogs {
     fn pick_package(&mut self) -> Option<std::path::PathBuf> {
         None
     }
+    fn pick_plugin(&mut self) -> Option<std::path::PathBuf> {
+        None
+    }
 }
 
 /// A harness that also carries out the effects commands leave for the shell.
@@ -832,7 +835,11 @@ fn the_network_features_are_off_by_default_and_the_window_says_nothing_is_sent()
             .toggled(),
         Some(egui::accesskit::Toggled::False)
     );
-    h.get_by_label("Nothing is sent over the internet unless you turn one of these on");
+    // The one request that needs no switch is the plugin link the user types and sends themselves,
+    // so the note has to say so.
+    h.get_by_label(
+        "Nothing is sent over the internet unless you turn one of these on, or ask for a plugin to be downloaded from a link you give below",
+    );
 }
 
 #[test]
@@ -2459,4 +2466,120 @@ fn moving_the_machine_is_a_separate_choice_that_is_off_until_the_user_makes_it()
         "Let the API move the machine until the app is closed",
     );
     assert!(h.state().api_armed());
+}
+
+// ---- plugins in the settings ----
+
+/// Serves one plugin package at one link, as a download would.
+struct PluginFake(Vec<u8>);
+
+impl ps_net::Http for PluginFake {
+    fn get(&self, url: &str, _max: usize) -> Result<Vec<u8>, ps_net::HttpError> {
+        if url == "https://example.org/acme.psdevice" {
+            Ok(self.0.clone())
+        } else {
+            Err(ps_net::HttpError::Status(404))
+        }
+    }
+}
+
+fn plugin_package(id: &str) -> Vec<u8> {
+    use ps_device::{DeviceFilter, PluginManifest, TransportKind, pack};
+    let manifest = PluginManifest {
+        id: id.to_owned(),
+        name: format!("Plugin {id}"),
+        filters: vec![DeviceFilter {
+            transport: TransportKind::Serial,
+            usb: None,
+        }],
+        internet_hosts: Vec::new(),
+    };
+    pack(&manifest, b"\0asm\x0d\0\x01\0", "1.0.0").unwrap()
+}
+
+fn settings_app_with_plugin_link(folder: &std::path::Path, package: Vec<u8>) -> App {
+    let mut a = settings_app();
+    a.install_plugins(folder);
+    a.online = OnlineController::new(
+        std::sync::Arc::new(PluginFake(package)),
+        semver::Version::new(1, 0, 0),
+        "https://example.org/feed.json".to_owned(),
+        "https://example.org/index.json".to_owned(),
+        Vec::new(),
+        ps_library::Network::default(),
+    );
+    a
+}
+
+#[test]
+fn the_settings_window_offers_to_install_a_plugin_from_a_file_or_a_link() {
+    let mut h = harness(settings_app());
+    h.run_steps(3);
+    h.get_by_label("Device plugins");
+    h.get_by_label("Install from file…");
+    h.get_by_label("Plugin link");
+    h.get_by_label("Download and install");
+    h.get_by_label("No plugins are installed.");
+}
+
+#[test]
+fn the_install_from_file_button_asks_the_shell_to_choose_a_plugin() {
+    let mut h = harness(settings_app());
+    h.run_steps(3);
+    h.get_by_label("Install from file…").click_accesskit();
+    h.run_steps(3);
+    assert_eq!(h.state_mut().take_effect(), Effect::InstallPlugin);
+}
+
+#[test]
+fn the_download_button_waits_for_a_link() {
+    let mut h = harness(settings_app());
+    h.run_steps(3);
+    assert!(
+        h.get_by_label("Download and install")
+            .accesskit_node()
+            .is_disabled()
+    );
+}
+
+#[test]
+fn a_plugin_link_is_downloaded_installed_and_listed() {
+    let root = tempfile::tempdir().unwrap();
+    let folder = root.path().join("plugins");
+    let mut a = settings_app_with_plugin_link(&folder, plugin_package("acme.net"));
+    a.plugin_url = "https://example.org/acme.psdevice".to_owned();
+    let mut h = harness(a);
+    h.run_steps(3);
+    h.get_by_label("Download and install").click_accesskit();
+    wait_for_text(&mut h, "Installed Plugin acme.net");
+    assert!(folder.join("acme.net.psdevice").is_file());
+    assert_eq!(h.state().machine.plugin_count(), 1);
+    h.get_by_label("acme.net");
+}
+
+#[test]
+fn a_plugin_link_that_fails_is_reported_and_installs_nothing() {
+    let root = tempfile::tempdir().unwrap();
+    let folder = root.path().join("plugins");
+    let mut a = settings_app_with_plugin_link(&folder, plugin_package("acme.net"));
+    a.plugin_url = "https://example.org/other.psdevice".to_owned();
+    let mut h = harness(a);
+    h.run_steps(3);
+    h.get_by_label("Download and install").click_accesskit();
+    wait_for_text(&mut h, "The plugin could not be installed");
+    assert_eq!(h.state().machine.plugin_count(), 0);
+    assert!(!folder.exists());
+}
+
+#[test]
+fn a_link_that_serves_something_else_is_refused_before_anything_is_written() {
+    let root = tempfile::tempdir().unwrap();
+    let folder = root.path().join("plugins");
+    let mut a = settings_app_with_plugin_link(&folder, b"<html>sign in</html>".to_vec());
+    a.plugin_url = "https://example.org/acme.psdevice".to_owned();
+    let mut h = harness(a);
+    h.run_steps(3);
+    h.get_by_label("Download and install").click_accesskit();
+    wait_for_text(&mut h, "The plugin could not be installed");
+    assert!(!folder.exists());
 }

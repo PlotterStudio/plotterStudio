@@ -5,7 +5,7 @@
 //! blocks: the handle runs the machine on its own thread and the controller drains its events
 //! each frame with [`MachineController::poll`].
 
-use std::collections::BTreeSet;
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, PoisonError};
@@ -55,6 +55,27 @@ pub struct PluginLoad {
     pub problems: Vec<String>,
 }
 
+/// A plugin that is installed.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InstalledPlugin {
+    /// Its id.
+    pub id: String,
+    /// Its display name.
+    pub name: String,
+}
+
+/// What installing one plugin package did.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Installation {
+    /// The plugin's id.
+    pub id: String,
+    /// The plugin's display name.
+    pub name: String,
+    /// True when a plugin with this id was already running: the new file is in place but the app
+    /// must be restarted to use it.
+    pub restart_needed: bool,
+}
+
 /// Discovery, approval, one machine session and its run.
 pub struct MachineController {
     host: Arc<DeviceHost>,
@@ -62,7 +83,8 @@ pub struct MachineController {
     /// True while a scan started by [`Self::refresh_in_background`] is running.
     refreshing: Arc<AtomicBool>,
     wasm: Option<Arc<WasmHost>>,
-    plugin_ids: BTreeSet<String>,
+    /// The installed plugins: id to display name.
+    plugins: BTreeMap<String, String>,
     runtime: tokio::runtime::Runtime,
     handle: Option<MachineHandle>,
     events: Option<Receiver<HandleEvent>>,
@@ -107,7 +129,7 @@ impl MachineController {
             simulate,
             refreshing: Arc::new(AtomicBool::new(false)),
             wasm: None,
-            plugin_ids: BTreeSet::new(),
+            plugins: BTreeMap::new(),
             runtime,
             handle: None,
             events: None,
@@ -204,33 +226,77 @@ impl MachineController {
                     continue;
                 }
             };
-            let host = match self.wasm_host() {
-                Ok(h) => h,
-                Err(e) => {
-                    load.problems.push(format!("{name}: {e}"));
-                    continue;
-                }
-            };
-            let pins = self.host.shared_permissions();
-            let made = WasmPlugin::from_package_with(&bytes, host, |manifest| {
-                Arc::new(PinningTransports::new(pins, &manifest.id))
-            });
-            match made {
+            match self.make_plugin(&bytes) {
                 Ok(plugin) => {
                     let id = plugin.manifest().id.clone();
-                    if self.plugin_ids.insert(id.clone()) {
-                        self.host.add_plugin(Arc::new(plugin));
-                        load.loaded.push(id);
-                    } else {
+                    if self.plugins.contains_key(&id) {
                         load.problems.push(format!(
                             "{name}: a plugin with id {id} is already installed"
                         ));
+                    } else {
+                        self.add_plugin(plugin);
+                        load.loaded.push(id);
                     }
                 }
                 Err(e) => load.problems.push(format!("{name}: {e}")),
             }
         }
         load
+    }
+
+    /// Installs one plugin package the user chose: it is loaded to prove it is a plugin, copied
+    /// into `dir` so the next start finds it there, and made available now. Nothing is written
+    /// when the package does not load.
+    ///
+    /// A plugin whose id is already running has its file replaced but keeps running as it was,
+    /// because a running plugin cannot be swapped; `Installation::restart_needed` says so.
+    ///
+    /// # Errors
+    ///
+    /// A message when the bytes are not a plugin or the file cannot be written.
+    pub fn install_plugin(&mut self, dir: &Path, bytes: &[u8]) -> Result<Installation, String> {
+        let plugin = self.make_plugin(bytes)?;
+        let id = plugin.manifest().id.clone();
+        let name = plugin.manifest().name.clone();
+        crate::plugin_install::store(dir, &id, bytes).map_err(|e| e.to_string())?;
+        let restart_needed = self.plugins.contains_key(&id);
+        if !restart_needed {
+            self.add_plugin(plugin);
+        }
+        Ok(Installation {
+            id,
+            name,
+            restart_needed,
+        })
+    }
+
+    /// The plugins installed now, by id.
+    #[must_use]
+    pub fn installed_plugins(&self) -> Vec<InstalledPlugin> {
+        self.plugins
+            .iter()
+            .map(|(id, name)| InstalledPlugin {
+                id: id.clone(),
+                name: name.clone(),
+            })
+            .collect()
+    }
+
+    /// Loads a package without registering it.
+    fn make_plugin(&mut self, bytes: &[u8]) -> Result<WasmPlugin, String> {
+        let host = self.wasm_host()?;
+        let pins = self.host.shared_permissions();
+        WasmPlugin::from_package_with(bytes, host, |manifest| {
+            Arc::new(PinningTransports::new(pins, &manifest.id))
+        })
+        .map_err(|e| e.to_string())
+    }
+
+    fn add_plugin(&mut self, plugin: WasmPlugin) {
+        let manifest = plugin.manifest();
+        self.plugins
+            .insert(manifest.id.clone(), manifest.name.clone());
+        self.host.add_plugin(Arc::new(plugin));
     }
 
     fn wasm_host(&mut self) -> Result<Arc<WasmHost>, String> {
@@ -252,7 +318,7 @@ impl MachineController {
     /// knowledge of how to find a machine lives in the plugin for it.
     #[must_use]
     pub fn plugin_count(&self) -> usize {
-        self.plugin_ids.len() + usize::from(self.simulate)
+        self.plugins.len() + usize::from(self.simulate)
     }
 
     /// True while a look started by [`Self::refresh_in_background`] is still running.

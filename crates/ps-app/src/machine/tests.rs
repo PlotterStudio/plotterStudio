@@ -361,6 +361,75 @@ fn the_same_plugin_id_twice_is_loaded_once() {
 }
 
 #[test]
+fn an_installed_plugin_is_copied_into_the_folder_and_is_usable_at_once() {
+    let dir = tempfile::tempdir().unwrap();
+    let plugins = dir.path().join("plugins");
+    let bytes = package_bytes("acme.saw");
+    let mut c = MachineController::new(false);
+    let done = c.install_plugin(&plugins, &bytes).unwrap();
+    assert_eq!(done.id, "acme.saw");
+    assert_eq!(done.name, "Plugin acme.saw");
+    assert!(!done.restart_needed);
+    assert_eq!(c.plugin_count(), 1);
+    assert_eq!(
+        std::fs::read(plugins.join("acme.saw.psdevice")).unwrap(),
+        bytes
+    );
+    assert_eq!(
+        c.installed_plugins(),
+        vec![InstalledPlugin {
+            id: "acme.saw".to_owned(),
+            name: "Plugin acme.saw".to_owned()
+        }]
+    );
+    // The next start finds it by scanning the folder, as before.
+    let mut next = MachineController::new(false);
+    assert_eq!(
+        next.install_plugins(&plugins).loaded,
+        vec!["acme.saw".to_owned()]
+    );
+}
+
+#[test]
+fn installing_a_plugin_again_replaces_the_file_and_asks_for_a_restart() {
+    use ps_device::{DeviceFilter, PluginManifest, TransportKind, pack};
+    let dir = tempfile::tempdir().unwrap();
+    let mut c = MachineController::new(false);
+    c.install_plugin(dir.path(), &package_bytes("acme.saw"))
+        .unwrap();
+    let manifest = PluginManifest {
+        id: "acme.saw".to_owned(),
+        name: "Saw 2".to_owned(),
+        filters: vec![DeviceFilter {
+            transport: TransportKind::Serial,
+            usb: None,
+        }],
+        internet_hosts: Vec::new(),
+    };
+    let newer = pack(&manifest, b"\0asm\x0d\0\x01\0", "2.0.0").unwrap();
+    let done = c.install_plugin(dir.path(), &newer).unwrap();
+    assert!(done.restart_needed, "the running copy cannot be swapped");
+    assert_eq!(c.plugin_count(), 1, "still one plugin, not two");
+    assert_eq!(
+        std::fs::read(dir.path().join("acme.saw.psdevice")).unwrap(),
+        newer
+    );
+}
+
+#[test]
+fn something_that_is_not_a_plugin_is_refused_and_nothing_is_written() {
+    let dir = tempfile::tempdir().unwrap();
+    let plugins = dir.path().join("plugins");
+    let mut c = MachineController::new(false);
+    let err = c
+        .install_plugin(&plugins, b"<html>404 not found</html>")
+        .unwrap_err();
+    assert_ne!(err, "", "the refusal says why");
+    assert_eq!(c.plugin_count(), 0);
+    assert!(!plugins.exists(), "the folder is not even created");
+}
+
+#[test]
 fn a_controller_with_no_plugin_can_find_and_connect_to_nothing() {
     let mut c = MachineController::new(false);
     assert_eq!(c.plugin_count(), 0);

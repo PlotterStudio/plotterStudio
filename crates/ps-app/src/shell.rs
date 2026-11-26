@@ -29,6 +29,8 @@ pub trait Dialogs {
     fn pick_folder(&mut self) -> Option<PathBuf>;
     /// Choose a material package to install; `None` if cancelled.
     fn pick_package(&mut self) -> Option<PathBuf>;
+    /// Choose a device plugin (`.psdevice`) to install; `None` if cancelled.
+    fn pick_plugin(&mut self) -> Option<PathBuf>;
 }
 
 /// Carries out the effect a command left for the shell.
@@ -68,6 +70,14 @@ pub fn handle_effect(app: &mut App, effect: Effect, dialogs: &mut dyn Dialogs, n
             }
         }
         Effect::SendToMachine => send_to_machine(app),
+        Effect::InstallPlugin => {
+            if let Some(path) = dialogs.pick_plugin() {
+                match std::fs::read(&path) {
+                    Ok(bytes) => app.install_plugin_bytes(&bytes),
+                    Err(e) => app.report_plugin_failure(&format!("{}: {e}", path.display())),
+                }
+            }
+        }
         Effect::InstallPackage => {
             if let Some(path) = dialogs.pick_package() {
                 match std::fs::read(&path) {

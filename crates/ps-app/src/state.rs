@@ -64,6 +64,9 @@ pub enum Effect {
     NewProject,
     /// Choose a material package and install it.
     InstallPackage,
+    /// Choose a device plugin and install it. Only the settings window asks for this: no command
+    /// or automation tool can, because a plugin is code that drives a machine.
+    InstallPlugin,
     /// Choose and open a project.
     OpenProject,
     /// Save the project.
