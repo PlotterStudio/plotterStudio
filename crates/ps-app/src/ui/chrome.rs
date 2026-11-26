@@ -421,6 +421,33 @@ fn divider(ui: &mut egui::Ui) {
     ui.add_space(3.0);
 }
 
+/// How much is selected: paths, or shapes inside an object, and how to reach an object's shapes.
+fn selection_counts(ui: &mut egui::Ui, app: &App, selected: usize) {
+    let muted = palette(ui.ctx()).muted;
+    if let Some(paths) = app.state.selected_path_count() {
+        let count = crate::l10n::Arg::Number(super::count_f64(paths));
+        let total = app.state.selected_object_path_count();
+        let said = if app.state.has_shape_selection() {
+            let total = crate::l10n::Arg::Number(super::count_f64(total));
+            app.loc
+                .tr_args("control-shapes", &[("count", count), ("total", total)])
+        } else {
+            app.loc.tr_args("control-paths", &[("count", count)])
+        };
+        ui.label(text(ui.ctx(), said, 12.0, Weight::Regular, muted));
+        // Say how to get at the shapes of an object that has several.
+        if !app.state.has_shape_selection() && selected == 1 && total > 1 {
+            ui.label(text(
+                ui.ctx(),
+                app.loc.tr("control-pick-shape"),
+                12.0,
+                Weight::Regular,
+                muted,
+            ));
+        }
+    }
+}
+
 fn control_contents(ui: &mut egui::Ui, app: &mut App, now_ms: u64) {
     let p = palette(ui.ctx());
     let selected = app.state.selection().objects().len();
@@ -453,18 +480,7 @@ fn control_contents(ui: &mut egui::Ui, app: &mut App, now_ms: u64) {
         egui::WidgetInfo::labeled(egui::WidgetType::Label, true, heard.clone())
     });
     super::tool_options(ui, app);
-    if let Some(paths) = app.state.selected_path_count() {
-        ui.label(text(
-            ui.ctx(),
-            app.loc.tr_args(
-                "control-paths",
-                &[("count", crate::l10n::Arg::Number(super::count_f64(paths)))],
-            ),
-            12.0,
-            Weight::Regular,
-            p.muted,
-        ));
-    }
+    selection_counts(ui, app, selected);
     let Some(bounds) = app.state.selection_bounds() else {
         return;
     };

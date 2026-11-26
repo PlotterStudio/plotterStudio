@@ -76,6 +76,8 @@ fn ctx(mat: MatId) -> ToolCtx {
         new_path: PathKey::source("new"),
         zoom: 1.0,
         pickables: Vec::new(),
+        pickable_keys: Vec::new(),
+        shapes: Vec::new(),
         selected: Vec::new(),
         sides: 5,
         star_ratio: 0.5,

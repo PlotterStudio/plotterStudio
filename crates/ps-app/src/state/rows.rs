@@ -2,7 +2,7 @@
 //! taking a row's operation off every path, deleting one object, finding a row's objects, and
 //! the ink colour of a pen row.
 
-use ps_core::{ObjectId, OpRowId};
+use ps_core::{ObjectId, OpRowId, PathKey};
 use ps_geometry::{FillSpec, Pattern};
 use ps_model::{
     Command as ModelCommand, OpKind, RemoveObject, RemoveOperation, SetOpFill, SetPenColour,
@@ -28,18 +28,32 @@ impl AppState {
         !cmds.is_empty() && self.commit(&cmds, now_ms)
     }
 
-    /// Selects the objects that carry the row's operation; false when none do.
+    /// Selects what carries the row's operation: whole objects where every path does, otherwise
+    /// just the shapes that do. False when nothing does.
     pub fn select_row_objects(&mut self, row: OpRowId) -> bool {
-        let mut ids: Vec<ObjectId> = Vec::new();
-        for (object, _, _) in self.row_operations(row) {
-            if !ids.contains(&object) {
-                ids.push(object);
+        let mat = self.current_mat();
+        let mut whole: Vec<ObjectId> = Vec::new();
+        let mut shapes: Vec<(ObjectId, PathKey)> = Vec::new();
+        for object in mat.objects.values() {
+            let on_row: Vec<&PathKey> = object
+                .paths
+                .iter()
+                .filter(|p| p.ops.iter().any(|op| op.row == row))
+                .map(|p| &p.key)
+                .collect();
+            if on_row.len() == object.paths.len() && !on_row.is_empty() {
+                whole.push(object.id);
+            } else {
+                shapes.extend(on_row.into_iter().map(|k| (object.id, k.clone())));
             }
         }
-        if ids.is_empty() {
+        if whole.is_empty() && shapes.is_empty() {
             return false;
         }
-        self.selection.set_objects(&ids);
+        self.selection.set_shapes(&shapes);
+        for object in whole {
+            self.selection.add_object(object);
+        }
         true
     }
 

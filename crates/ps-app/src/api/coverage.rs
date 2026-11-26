@@ -121,6 +121,7 @@ const MODEL_TABLE: &[(&str, Coverage)] = &[
     ("SetGuides", op("mat", "add_guide")),
     ("SetJobSettings", op("operation", "set_job")),
     ("SetRules", op("operation", "set_rules")),
+    ("RemovePath", op("object", "delete")),
 ];
 
 /// How the API covers a `ps-model` document command, or `None` when nobody decided.

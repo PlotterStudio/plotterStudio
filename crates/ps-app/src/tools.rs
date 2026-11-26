@@ -13,7 +13,7 @@ use ps_model::{
     AddObject, Command as ModelCommand, PlacedObject, SetPathGeometry, SetStartPoint, SetTransform,
     ShapePath, SourceStyle, SplitPath,
 };
-use ps_render::{BoxMode, Pickable, flatten_tolerance_mm, pick, pick_in_box};
+use ps_render::{BoxMode, Pickable, flatten_tolerance_mm, pick, pick_in_box, pick_innermost};
 
 use crate::commands::Mods;
 use crate::selection::Item;
@@ -60,6 +60,12 @@ pub enum ToolOutcome {
     Toggle(ObjectId),
     /// Select one node of one path.
     SelectNode(Item),
+    /// Make exactly these shapes (object and path) the selection.
+    SelectShapes(Vec<(ObjectId, PathKey)>),
+    /// Add these shapes to the selection.
+    AddShapes(Vec<(ObjectId, PathKey)>),
+    /// Toggle one shape in the selection.
+    ToggleShape(ObjectId, PathKey),
     /// Apply these commands as one undo step.
     Commit(Vec<Box<dyn ModelCommand>>),
 }
@@ -74,6 +80,9 @@ impl std::fmt::Debug for ToolOutcome {
             Self::Add(ids) => f.debug_tuple("Add").field(ids).finish(),
             Self::Toggle(id) => f.debug_tuple("Toggle").field(id).finish(),
             Self::SelectNode(item) => f.debug_tuple("SelectNode").field(item).finish(),
+            Self::SelectShapes(s) => f.debug_tuple("SelectShapes").field(s).finish(),
+            Self::AddShapes(s) => f.debug_tuple("AddShapes").field(s).finish(),
+            Self::ToggleShape(o, p) => f.debug_tuple("ToggleShape").field(o).field(p).finish(),
             Self::Commit(cmds) => f
                 .debug_tuple("Commit")
                 .field(&cmds.iter().map(|c| c.label()).collect::<Vec<_>>())
@@ -146,6 +155,10 @@ pub struct ToolCtx {
     pub zoom: f64,
     /// Everything that can be picked, bottom to top, in world coordinates.
     pub pickables: Vec<Pickable<ObjectId>>,
+    /// The path each of `pickables` is, in the same order.
+    pub pickable_keys: Vec<PathKey>,
+    /// The shapes selected on their own; while there are any, no whole object can be moved.
+    pub shapes: Vec<(ObjectId, PathKey)>,
     /// The selected objects and their current transforms.
     pub selected: Vec<(ObjectId, Affine)>,
     /// How many sides a polygon has and how many points a star has.

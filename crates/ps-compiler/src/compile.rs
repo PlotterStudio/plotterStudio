@@ -701,20 +701,14 @@ fn flat_points(path: &Path) -> Vec<PtUm> {
         .collect()
 }
 
-/// Fills of the closed paths of one object with the same kind and tool are one region, so a ring
-/// inside a ring is a hole. The group's strokes go to its first path; the others have none.
+/// Fills of the closed paths of one object in one block (row, kind and tool) are one region, so a
+/// ring inside a ring is a hole. The group's strokes go to its first path; the others have none.
+/// Separate rows stay separate, so an object can be filled more than once.
 fn merge_fill_groups(work: &[Work<'_>], inputs: &[PrepareInput<'_>], prepared: &mut [Prepared]) {
-    let mut groups: BTreeMap<(ps_core::ObjectId, &str, String), Vec<usize>> = BTreeMap::new();
+    let mut groups: BTreeMap<(ps_core::ObjectId, usize), Vec<usize>> = BTreeMap::new();
     for (i, w) in work.iter().enumerate() {
         if matches!(w.op.kind, OpKind::Fill | OpKind::FoilFill) && w.path.geom.closed {
-            groups
-                .entry((
-                    w.object.id,
-                    w.op.kind.as_str(),
-                    w.tool.lib_ref().to_string(),
-                ))
-                .or_default()
-                .push(i);
+            groups.entry((w.object.id, w.block)).or_default().push(i);
         }
     }
     for members in groups.values().filter(|m| m.len() > 1) {
@@ -777,7 +771,50 @@ fn safety_edges(
         }
         drawn.push(Drawn { block: b, paths });
     }
-    release_edges(&cutters, &drawn)
+    let mut edges = release_edges(&cutters, &drawn);
+    edges.retain(|e| !only_retraces(e, blocks, work, prepared));
+    edges
+}
+
+/// True when the only reason for a "must run before" edge is that both blocks through-cut the same
+/// outline. Cutting a shape twice is a request, not a release-order problem: neither cut can run
+/// "before the shape is freed" by the other.
+fn only_retraces(
+    edge: &crate::schedule::Edge,
+    blocks: &[Block],
+    work: &[Work<'_>],
+    prepared: &[Prepared],
+) -> bool {
+    if blocks[edge.before].stage != Stage::ThroughCut
+        || blocks[edge.after].stage != Stage::ThroughCut
+    {
+        return false;
+    }
+    let of = |block: usize| {
+        work.iter()
+            .zip(prepared)
+            .filter(move |(w, _)| w.block == block)
+    };
+    let same = |a: &Work<'_>, b: &Work<'_>| a.object.id == b.object.id && a.path.key == b.path.key;
+    // Every outline of the later block must be clear of what the earlier one cuts elsewhere.
+    of(edge.after).all(|(cut, p)| {
+        let cutter = Cutter {
+            block: edge.after,
+            rings: p
+                .strokes
+                .iter()
+                .filter_map(|s| s.tip_ring.clone())
+                .collect(),
+        };
+        let elsewhere = Drawn {
+            block: edge.before,
+            paths: of(edge.before)
+                .filter(|(w, _)| !same(w, cut))
+                .flat_map(|(_, p)| p.strokes.iter().map(|s| flat_points(&s.path)))
+                .collect(),
+        };
+        release_edges(&[cutter], &[elsewhere]).is_empty()
+    })
 }
 
 fn coverage(mat: &Mat, work: &[Work<'_>], prepared: &[Prepared]) -> Result<u32, CompileError> {

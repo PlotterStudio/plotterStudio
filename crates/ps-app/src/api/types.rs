@@ -229,15 +229,24 @@ pub enum NodeAction {
 #[derive(Debug, Clone, PartialEq, Deserialize, JsonSchema)]
 #[serde(tag = "op", rename_all = "snake_case")]
 pub enum Object {
-    /// Selects objects in the window; `objects` empty clears the selection.
+    /// Selects objects, or shapes inside one, in the window; `objects` empty clears the
+    /// selection.
     Select {
         /// The objects.
         objects: Vec<Id>,
+        /// Only these shapes, by the `key` that `query` `objects` lists for each path; needs
+        /// exactly one object. Without it every path of the objects.
+        #[serde(default)]
+        paths: Option<Vec<String>>,
     },
-    /// Deletes objects.
+    /// Deletes objects, or shapes inside one.
     Delete {
         /// The objects.
         objects: Vec<Id>,
+        /// Only these shapes, by the `key` that `query` `objects` lists for each path; needs
+        /// exactly one object. Without it every path of the objects.
+        #[serde(default)]
+        paths: Option<Vec<String>>,
     },
     /// Duplicates objects, offset a little; the reply lists the copies.
     Duplicate {
@@ -461,7 +470,30 @@ pub enum Ordering {
 #[derive(Debug, Clone, PartialEq, Deserialize, JsonSchema)]
 #[serde(tag = "op", rename_all = "snake_case")]
 pub enum Operation {
-    /// Gives objects an operation with a tool. The reply holds the row.
+    /// Puts an existing row's operation, with its settings, on more objects.
+    AddObjects {
+        /// The row.
+        row: Id,
+        /// The objects.
+        objects: Vec<Id>,
+        /// Only these shapes, by the `key` that `query` `objects` lists for each path; needs
+        /// exactly one object. Without it every path of the objects.
+        #[serde(default)]
+        paths: Option<Vec<String>>,
+    },
+    /// Takes an existing row's operation off these objects only.
+    RemoveObjects {
+        /// The row.
+        row: Id,
+        /// The objects.
+        objects: Vec<Id>,
+        /// Only these shapes, by the `key` that `query` `objects` lists for each path; needs
+        /// exactly one object. Without it every path of the objects.
+        #[serde(default)]
+        paths: Option<Vec<String>>,
+    },
+    /// Gives objects a new operation with a tool, in a row of its own even when an equal one
+    /// exists. The reply holds the row.
     Assign {
         /// The objects.
         objects: Vec<Id>,
@@ -469,6 +501,10 @@ pub enum Operation {
         kind: Kind,
         /// A tool reference such as `generic.drag-blade@1.0.0`; see `query` `tools`.
         tool: String,
+        /// Only these shapes, by the `key` that `query` `objects` lists for each path; needs
+        /// exactly one object. Without it every path of the objects.
+        #[serde(default)]
+        paths: Option<Vec<String>>,
     },
     /// Removes an operations row.
     Remove {

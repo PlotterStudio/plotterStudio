@@ -90,6 +90,7 @@ impl App {
                             .iter()
                             .map(|p| {
                                 json!({
+                                    "key": p.key.to_string(),
                                     "closed": p.geom.closed,
                                     "operations": p.ops.iter().map(|op| json!({
                                         "kind": op.kind.as_str(),
@@ -117,7 +118,14 @@ impl App {
                     .iter()
                     .map(ToString::to_string)
                     .collect();
-                Ok(json!({"objects": ids}))
+                let shapes: Vec<Value> = state
+                    .selection()
+                    .shapes()
+                    .map(|(object, path)| {
+                        json!({"object": object.to_string(), "path": path.to_string()})
+                    })
+                    .collect();
+                Ok(json!({"objects": ids, "shapes": shapes}))
             }
             Query::Rows => {
                 let rows: Vec<Value> = state

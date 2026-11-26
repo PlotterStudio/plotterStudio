@@ -104,6 +104,46 @@ impl App {
         self.focus(ids)
     }
 
+    /// Like [`Self::focus_some`], narrowed to some shapes of one object when `paths` is given.
+    fn focus_shapes(
+        &mut self,
+        objects: &[String],
+        paths: Option<&[String]>,
+    ) -> Result<Vec<ObjectId>, ApiError> {
+        let ids = self.focus_some(objects)?;
+        let Some(paths) = paths else {
+            return Ok(ids);
+        };
+        let [id] = ids.as_slice() else {
+            return Err(
+                ApiError::new("bad_arguments", "`paths` needs exactly one object")
+                    .hint("make one call per object"),
+            );
+        };
+        if paths.is_empty() {
+            return Err(ApiError::new("bad_arguments", "`paths` must not be empty")
+                .hint("leave it out to mean every path"));
+        }
+        let mat = self.state().current_mat();
+        let mut shapes = Vec::with_capacity(paths.len());
+        for wanted in paths {
+            let found = mat
+                .objects
+                .get(id)
+                .and_then(|o| o.paths.iter().find(|p| p.key.to_string() == *wanted));
+            let Some(found) = found else {
+                return Err(ApiError::new(
+                    "unknown_path",
+                    format!("no path {wanted} in that object"),
+                )
+                .hint("call `query` with what=objects to list each path's key"));
+            };
+            shapes.push((*id, found.key.clone()));
+        }
+        self.state_mut().select_shapes(&shapes);
+        Ok(ids)
+    }
+
     /// Switches to a mat by id; `None` keeps the current one.
     fn use_mat(&mut self, mat: Option<&str>) -> Result<(), ApiError> {
         let Some(text) = mat else {
@@ -137,16 +177,24 @@ impl App {
     )]
     pub(super) fn object_tool(&mut self, op: Object, now: u64) -> Reply {
         match op {
-            Object::Select { objects } => {
-                self.focus(&objects)?;
+            Object::Select { objects, paths } => {
+                if paths.is_some() {
+                    self.focus_shapes(&objects, paths.as_deref())?;
+                } else {
+                    self.focus(&objects)?;
+                }
                 Ok(json!({}))
             }
-            Object::Delete { objects } => {
-                let ids = self.focus_some(&objects)?;
+            Object::Delete { objects, paths } => {
+                let ids = self.focus_shapes(&objects, paths.as_deref())?;
+                let before = self.state().document();
                 self.state_mut().run_command("edit.delete", now);
-                let gone = ids
-                    .iter()
-                    .all(|id| self.state().mat_of_object(*id).is_none());
+                let gone = if paths.is_some() {
+                    self.state().document() != before
+                } else {
+                    ids.iter()
+                        .all(|id| self.state().mat_of_object(*id).is_none())
+                };
                 done(gone, "delete", "the objects may be locked")
             }
             Object::Duplicate { objects } => {
@@ -405,8 +453,9 @@ impl App {
                 objects,
                 kind,
                 tool,
+                paths,
             } => {
-                self.focus_some(&objects)?;
+                self.focus_shapes(&objects, paths.as_deref())?;
                 let kind = op_kind(kind);
                 if !self
                     .state()
@@ -419,23 +468,39 @@ impl App {
                         "call `query` with what=tools and the kind for valid tool references",
                     ));
                 }
-                let ok = self.state_mut().assign_operation(kind, &tool, now);
+                let row = self.state_mut().assign_operation_row(kind, &tool, now);
                 done(
-                    ok,
+                    row.is_some(),
                     "assign",
                     "call `query` with what=tools and the kind for valid tool references",
                 )?;
-                let id = tool.split('@').next().unwrap_or_default().to_owned();
-                let row = self
-                    .state()
-                    .operation_rows()
-                    .into_iter()
-                    .find(|r| {
-                        r.kind == kind
-                            && (r.tool == tool || r.tool.split('@').next() == Some(id.as_str()))
-                    })
-                    .map(|r| r.id.to_string());
-                Ok(json!({ "row": row }))
+                Ok(json!({ "row": row.map(|r| r.to_string()) }))
+            }
+            Operation::AddObjects {
+                row,
+                objects,
+                paths,
+            } => {
+                let id = self.row(&row)?;
+                self.focus_shapes(&objects, paths.as_deref())?;
+                done(
+                    self.state_mut().add_selection_to_row(id, now),
+                    "add_objects",
+                    "those objects already have that operation",
+                )
+            }
+            Operation::RemoveObjects {
+                row,
+                objects,
+                paths,
+            } => {
+                let id = self.row(&row)?;
+                self.focus_shapes(&objects, paths.as_deref())?;
+                done(
+                    self.state_mut().remove_selection_from_row(id, now),
+                    "remove_objects",
+                    "those objects do not have that operation",
+                )
             }
             Operation::Remove { row } => {
                 let id = self.row(&row)?;

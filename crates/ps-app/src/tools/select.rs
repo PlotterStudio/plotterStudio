@@ -4,8 +4,9 @@
 //! objects move on the canvas instead of a ghost of them.
 
 use super::{
-    Affine, BoxMode, CLICK_PX, CanvasEvent, Cursor, ModelCommand, Mods, ObjectId, Overlay, Point,
-    Rect, SetTransform, Tool, ToolCtx, ToolId, ToolOutcome, Vec2, pick, pick_in_box,
+    Affine, BoxMode, CLICK_PX, CanvasEvent, Cursor, ModelCommand, Mods, ObjectId, Overlay, PathKey,
+    Pickable, Point, Rect, SetTransform, Tool, ToolCtx, ToolId, ToolOutcome, Vec2, pick,
+    pick_in_box, pick_innermost,
 };
 
 fn screen_distance(a: Point, b: Point, zoom: f64) -> f64 {
@@ -166,9 +167,17 @@ enum SelectState {
         start: Point,
         hit: ObjectId,
         shift: bool,
+        command: bool,
         moving: Vec<ObjectId>,
         bounds: Rect,
         delta: Vec2,
+    },
+    /// Pressed while working on the shapes inside objects: a click takes a shape, a drag takes
+    /// the shapes in a box. Nothing moves.
+    Shapes {
+        start: Point,
+        current: Point,
+        hit: Option<(ObjectId, PathKey)>,
     },
     Scale {
         handle: Handle,
@@ -189,12 +198,42 @@ enum SelectState {
     },
 }
 
+/// The paths that can be picked, each as a shape of its object.
+fn shape_pickables(
+    ctx: &ToolCtx,
+    wanted: impl Fn(ObjectId) -> bool,
+) -> Vec<Pickable<(ObjectId, PathKey)>> {
+    ctx.pickables
+        .iter()
+        .zip(&ctx.pickable_keys)
+        .filter(|(item, _)| wanted(item.id))
+        .map(|(item, key)| Pickable {
+            id: (item.id, key.clone()),
+            path: item.path.clone(),
+            filled: item.filled,
+        })
+        .collect()
+}
+
+/// Whether some shape of `object` is selected on its own.
+fn entered(ctx: &ToolCtx, object: ObjectId) -> bool {
+    ctx.shapes.iter().any(|(o, _)| *o == object)
+}
+
+/// The shape under `p` of an object that has more than one to choose from.
+fn shape_at(ctx: &ToolCtx, p: Point) -> Option<(ObjectId, PathKey)> {
+    let (object, key) = pick_innermost(&shape_pickables(ctx, |_| true), p, ctx.zoom)?;
+    let several = ctx.pickables.iter().filter(|i| i.id == object).count() > 1;
+    several.then_some((object, key))
+}
+
 /// Selects objects by click or marquee, moves them by dragging, and scales and rotates them from
-/// the handles of the selection box.
+/// the handles of the selection box. A double click (or a click with the command key) selects one
+/// shape inside an object; Escape goes back to the whole object.
 #[derive(Debug, Default)]
 pub struct SelectTool {
     state: SelectState,
-    pickables: Vec<ps_render::Pickable<ObjectId>>,
+    pickables: Vec<Pickable<ObjectId>>,
     /// Lines the moving box may snap to: x positions, then y positions.
     targets: (Vec<f64>, Vec<f64>),
     /// The snap guides to draw for the current drag.
@@ -497,6 +536,19 @@ impl SelectTool {
             };
             return ToolOutcome::Idle;
         }
+        if !ctx.shapes.is_empty() {
+            let inside = shape_pickables(ctx, |o| entered(ctx, o));
+            let hit = pick_innermost(&inside, p, ctx.zoom);
+            let elsewhere = pick(&ctx.pickables, p, ctx.zoom).is_some_and(|o| !entered(ctx, o));
+            if hit.is_some() || !elsewhere {
+                self.state = SelectState::Shapes {
+                    start: p,
+                    current: p,
+                    hit,
+                };
+                return ToolOutcome::Idle;
+            }
+        }
         let Some(hit) = pick(&ctx.pickables, p, ctx.zoom) else {
             self.state = SelectState::Marquee {
                 start: p,
@@ -519,6 +571,7 @@ impl SelectTool {
             start: p,
             hit,
             shift: mods.shift,
+            command: mods.command,
             moving,
             bounds,
             delta: Vec2::ZERO,
@@ -527,6 +580,56 @@ impl SelectTool {
             ToolOutcome::Idle
         } else {
             ToolOutcome::Select(vec![hit])
+        }
+    }
+
+    /// Ends a press made while working on shapes.
+    fn release_shapes(
+        start: Point,
+        p: Point,
+        hit: Option<(ObjectId, PathKey)>,
+        mods: Mods,
+        ctx: &ToolCtx,
+    ) -> ToolOutcome {
+        if screen_distance(start, p, ctx.zoom) <= CLICK_PX {
+            return match hit {
+                Some((object, key)) if mods.shift => ToolOutcome::ToggleShape(object, key),
+                Some(shape) => ToolOutcome::SelectShapes(vec![shape]),
+                None if mods.shift => ToolOutcome::Idle,
+                None => ToolOutcome::Select(Vec::new()),
+            };
+        }
+        let rect = Rect::new(
+            start.x.min(p.x),
+            start.y.min(p.y),
+            start.x.max(p.x),
+            start.y.max(p.y),
+        );
+        let box_mode = if p.x >= start.x {
+            BoxMode::Enclosed
+        } else {
+            BoxMode::Crossing
+        };
+        // Only outlines count: a box inside a large shape must not take the shape around it.
+        let mut inside = shape_pickables(ctx, |o| entered(ctx, o));
+        for item in &mut inside {
+            item.filled = false;
+        }
+        let shapes = pick_in_box(&inside, rect, box_mode);
+        if !shapes.is_empty() {
+            return if mods.shift {
+                ToolOutcome::AddShapes(shapes)
+            } else {
+                ToolOutcome::SelectShapes(shapes)
+            };
+        }
+        // The box missed every shape: it is an ordinary box over the other objects.
+        let mut others = pick_in_box(&ctx.pickables, rect, box_mode);
+        others.retain(|o| !entered(ctx, *o));
+        if mods.shift {
+            ToolOutcome::Add(others)
+        } else {
+            ToolOutcome::Select(others)
         }
     }
 
@@ -589,6 +692,12 @@ impl Tool for SelectTool {
                         *current = p;
                         ToolOutcome::Preview
                     }
+                    SelectState::Shapes { start, current, .. } => {
+                        if screen_distance(*start, p, ctx.zoom) > CLICK_PX {
+                            *current = p;
+                        }
+                        ToolOutcome::Preview
+                    }
                     SelectState::Idle => ToolOutcome::Idle,
                 };
                 self.state = state;
@@ -602,11 +711,19 @@ impl Tool for SelectTool {
                         start,
                         hit,
                         shift,
+                        command,
                         moving,
                         bounds,
                         ..
                     } => {
                         if screen_distance(start, p, ctx.zoom) <= CLICK_PX {
+                            if command && let Some((object, key)) = shape_at(ctx, start) {
+                                return if shift {
+                                    ToolOutcome::ToggleShape(object, key)
+                                } else {
+                                    ToolOutcome::SelectShapes(vec![(object, key)])
+                                };
+                            }
                             return if shift {
                                 ToolOutcome::Toggle(hit)
                             } else {
@@ -616,6 +733,9 @@ impl Tool for SelectTool {
                         let d = self.move_delta(start, p, bounds, mods, ctx);
                         self.guides.clear();
                         Self::commit(ctx, &moving, Affine::translate(d))
+                    }
+                    SelectState::Shapes { start, hit, .. } => {
+                        Self::release_shapes(start, p, hit, mods, ctx)
                     }
                     SelectState::Scale {
                         handle,
@@ -667,22 +787,38 @@ impl Tool for SelectTool {
                 self.hover = Self::selection_bounds(ctx).and_then(|b| grab_at(b, p, ctx.zoom));
                 ToolOutcome::Idle
             }
-            CanvasEvent::Enter | CanvasEvent::DoubleClick(_) => ToolOutcome::Idle,
+            CanvasEvent::DoubleClick(p) => match shape_at(ctx, p) {
+                Some(shape) if !mods.shift => ToolOutcome::SelectShapes(vec![shape]),
+                _ => ToolOutcome::Idle,
+            },
+            CanvasEvent::Enter => ToolOutcome::Idle,
             CanvasEvent::Escape => {
                 let was_active = !matches!(self.state, SelectState::Idle);
                 self.state = SelectState::Idle;
                 self.guides.clear();
                 if was_active {
                     ToolOutcome::Cancel
-                } else {
+                } else if ctx.shapes.is_empty() {
                     ToolOutcome::Idle
+                } else {
+                    // Back out of the shapes to their whole objects.
+                    let mut objects: Vec<ObjectId> = ctx.shapes.iter().map(|(o, _)| *o).collect();
+                    objects.dedup();
+                    ToolOutcome::Select(objects)
                 }
             }
         }
     }
 
     fn overlay(&self, out: &mut Vec<Overlay>) {
-        if let SelectState::Marquee { start, current } = &self.state {
+        let boxed = match &self.state {
+            SelectState::Marquee { start, current } => Some((start, current)),
+            SelectState::Shapes { start, current, .. } if start != current => {
+                Some((start, current))
+            }
+            _ => None,
+        };
+        if let Some((start, current)) = boxed {
             out.push(Overlay::Marquee {
                 rect: Rect::new(
                     start.x.min(current.x),

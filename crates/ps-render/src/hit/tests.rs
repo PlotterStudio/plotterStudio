@@ -200,3 +200,27 @@ fn a_box_selection_takes_everything_inside_or_crossing() {
     enclosed.sort_unstable();
     assert_eq!(enclosed, vec![1], "the long line is not fully inside");
 }
+
+#[test]
+fn the_innermost_pick_reaches_a_shape_inside_a_larger_one_drawn_over_it() {
+    let square = |id: u32, at: f64, size: f64| Pickable {
+        id,
+        path: Path::rect(at, at, size, size),
+        filled: true,
+    };
+    // The small square is drawn first, so the large one lies on top of it.
+    let items = [square(1, 5.0, 4.0), square(2, 0.0, 20.0)];
+    assert_eq!(pick(&items, Point::new(7.0, 7.0), 4.0), Some(2));
+    assert_eq!(pick_innermost(&items, Point::new(7.0, 7.0), 4.0), Some(1));
+    assert_eq!(
+        pick_innermost(&items, Point::new(15.0, 15.0), 4.0),
+        Some(2),
+        "outside the small one"
+    );
+    assert_eq!(
+        pick_innermost(&items, Point::new(0.5, 10.0), 4.0),
+        Some(2),
+        "on the large outline"
+    );
+    assert_eq!(pick_innermost(&items, Point::new(40.0, 40.0), 4.0), None);
+}

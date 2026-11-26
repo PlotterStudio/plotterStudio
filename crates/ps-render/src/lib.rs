@@ -26,7 +26,7 @@ pub use dash::{MAX_DASHES, dash, dash_for_zoom};
 pub use gpu::{GpuContext, GpuError, Image, Scene, srgb_to_linear};
 pub use hit::{
     BoxMode, PICK_RADIUS_PX, Pickable, distance_to_path, distance_to_segment, pick, pick_in_box,
-    pick_radius_mm, winding_number,
+    pick_innermost, pick_radius_mm, winding_number,
 };
 pub use lod::{
     cached_mesh_scale, dot_centre, flatten_tolerance_mm, is_dot, needs_retessellation, px_to_mm,

@@ -1,9 +1,11 @@
 //! The Prepare screen's side panels from the design: the 220 px layers panel on the left, and the
 //! 288 px operations panel on the right with the selected row's settings below the list.
 
+use std::collections::BTreeMap;
+
 use egui::{Align, Color32, Layout, Margin, Pos2, Rect, Sense, Stroke, UiBuilder, vec2};
-use ps_core::{ObjectId, OpRowId};
-use ps_model::OpKind;
+use ps_core::{ObjectId, OpRowId, PathKey};
+use ps_model::{OpKind, ShapePath};
 
 use super::App;
 use super::zest::{self, Icon, Weight, font, hairline, palette, text};
@@ -193,7 +195,15 @@ pub(super) fn layers_panel(ctx: &egui::Context, app: &mut App, now_ms: u64) {
     reason = "straight-line drawing of one panel; splitting it would only scatter the layout"
 )]
 fn layer_rows(ui: &mut egui::Ui, app: &mut App, p: crate::theme::Palette, now_ms: u64) {
+    unfold_newly_selected(app);
     let selected: Vec<ObjectId> = app.state.selection().objects();
+    // Looked up once: a large drawing lists many shapes.
+    let inks: BTreeMap<OpRowId, String> = app
+        .state
+        .operation_rows()
+        .into_iter()
+        .filter_map(|row| Some((row.id, row.ink?)))
+        .collect();
     let mat = app.state.current_mat();
     if let Some(used) = app.state.used_length_mm() {
         ui.add_space(2.0);
@@ -216,7 +226,17 @@ fn layer_rows(ui: &mut egui::Ui, app: &mut App, p: crate::theme::Palette, now_ms
     }
     ui.spacing_mut().item_spacing.y = 0.0;
     for (index, (id, object)) in mat.objects.iter().enumerate() {
-        let on = selected.contains(id);
+        let has_shapes = object.paths.len() > 1;
+        let expanded = has_shapes && app.layers_expanded.contains(id);
+        let touched = selected.contains(id);
+        // Lit only when the whole object is selected, so that it is not mistaken for that when
+        // only some of its shapes are.
+        let on = touched
+            && !app
+                .state
+                .selection()
+                .shapes()
+                .any(|(object, _)| object == *id);
         let label = app.loc.tr_args(
             "tree-object",
             &[("n", Arg::Number(super::count_f64(index + 1)))],
@@ -225,19 +245,22 @@ fn layer_rows(ui: &mut egui::Ui, app: &mut App, p: crate::theme::Palette, now_ms
         let (rect, response) = ui.allocate_exact_size(vec2(width, 24.0), Sense::click());
         let rect = rect.translate(vec2(4.0, 0.0));
         let hover = ui.rect_contains_pointer(rect);
+        if hover {
+            app.state.set_highlight_layer(Some((*id, None)));
+        }
         if on {
             ui.painter().rect_filled(rect, 2.0, p.tint);
         } else if hover {
             ui.painter().rect_filled(rect, 2.0, p.ground);
         }
         ui.painter().text(
-            Pos2::new(rect.left() + 8.0, rect.center().y),
+            Pos2::new(rect.left() + 22.0, rect.center().y),
             egui::Align2::LEFT_CENTER,
             &label,
             font(
                 ui.ctx(),
                 12.0,
-                if on {
+                if touched {
                     Weight::Semibold
                 } else {
                     Weight::Regular
@@ -254,23 +277,19 @@ fn layer_rows(ui: &mut egui::Ui, app: &mut App, p: crate::theme::Palette, now_ms
             }
         }
         let show_delete = hover || on;
-        let mut x = rect.right() - 6.0 - if show_delete { 24.0 } else { 0.0 };
-        for kind in kinds.iter().rev() {
-            x -= 14.0;
-            zest::line_swatch(
-                ui.painter(),
-                Pos2::new(x, rect.center().y),
-                14.0,
-                op_colour(*kind),
-                ps_render::style_of(*kind),
-                2.0,
-            );
-            x -= 2.0;
-        }
+        let right = rect.right() - 6.0 - if show_delete { 24.0 } else { 0.0 };
+        kind_swatches(ui, &kinds, right, rect.center().y);
         let name = label.clone();
         response.widget_info(move || {
             egui::WidgetInfo::selected(egui::WidgetType::Button, true, on, name.clone())
         });
+        let mut folded = false;
+        if has_shapes {
+            folded = expand_button(ui, app, p, &response, rect, &label, expanded);
+            if folded && !app.layers_expanded.remove(id) {
+                app.layers_expanded.insert(*id);
+            }
+        }
         if show_delete {
             let delete_rect = Rect::from_center_size(
                 Pos2::new(rect.right() - 16.0, rect.center().y),
@@ -296,8 +315,184 @@ fn layer_rows(ui: &mut egui::Ui, app: &mut App, p: crate::theme::Palette, now_ms
                 continue;
             }
         }
-        if response.clicked() {
+        if response.clicked() && !folded {
             app.state.select_object(*id);
+        }
+        if expanded {
+            for (number, path) in object.paths.iter().enumerate() {
+                shape_row(ui, app, p, (*id, &label), number + 1, path, &inks);
+            }
+        }
+    }
+}
+
+/// Folds out the objects of a shape selection made since the last frame, wherever it was made.
+fn unfold_newly_selected(app: &mut App) {
+    let shapes: Vec<(ObjectId, PathKey)> = app
+        .state
+        .selection()
+        .shapes()
+        .map(|(object, path)| (object, path.clone()))
+        .collect();
+    if shapes != app.layers_seen_shapes {
+        // Only for shapes not selected before, so that a list folded by hand stays folded.
+        let new = shapes
+            .iter()
+            .filter(|s| !app.layers_seen_shapes.contains(s));
+        app.layers_expanded.extend(new.map(|(object, _)| *object));
+        app.layers_seen_shapes = shapes;
+    }
+}
+
+/// The chevron at the start of an object's row; true when it was clicked.
+fn expand_button(
+    ui: &mut egui::Ui,
+    app: &App,
+    p: crate::theme::Palette,
+    row: &egui::Response,
+    rect: Rect,
+    object: &str,
+    expanded: bool,
+) -> bool {
+    let at = Rect::from_center_size(
+        Pos2::new(rect.left() + 11.0, rect.center().y),
+        vec2(18.0, 22.0),
+    );
+    let response = ui.interact(at, row.id.with("expand"), Sense::click());
+    if response.hovered() {
+        ui.painter().rect_filled(at, 3.0, p.hover);
+    }
+    zest::icon(
+        ui.painter(),
+        at.center(),
+        if expanded {
+            Icon::ChevronDown
+        } else {
+            Icon::ChevronRight
+        },
+        11.0,
+        p.muted,
+    );
+    let key = if expanded {
+        "layers-hide-shapes"
+    } else {
+        "layers-show-shapes"
+    };
+    let said = app.loc.tr_args(key, &[("object", Arg::Text(object))]);
+    response.widget_info(move || {
+        egui::WidgetInfo::labeled(egui::WidgetType::Button, true, said.clone())
+    });
+    response.clicked()
+}
+
+/// A line swatch for each operation kind, ending at `right`; returns where they start.
+fn kind_swatches(ui: &egui::Ui, kinds: &[OpKind], right: f32, y: f32) -> f32 {
+    let mut x = right;
+    for kind in kinds.iter().rev() {
+        x -= 14.0;
+        zest::line_swatch(
+            ui.painter(),
+            Pos2::new(x, y),
+            14.0,
+            op_colour(*kind),
+            ps_render::style_of(*kind),
+            2.0,
+        );
+        x -= 2.0;
+    }
+    x
+}
+
+/// One shape under its object: a click selects it alone, Shift- or Command-click adds it or
+/// takes it out. Its swatches and ink dots show what runs on it.
+fn shape_row(
+    ui: &mut egui::Ui,
+    app: &mut App,
+    p: crate::theme::Palette,
+    (object, object_label): (ObjectId, &str),
+    number: usize,
+    path: &ShapePath,
+    inks: &BTreeMap<OpRowId, String>,
+) {
+    let on = app
+        .state
+        .selection()
+        .shapes()
+        .any(|(o, key)| o == object && *key == path.key);
+    let width = ui.available_width() - 8.0;
+    let (rect, response) = ui.allocate_exact_size(vec2(width, 22.0), Sense::click());
+    let rect = rect.translate(vec2(4.0, 0.0));
+    let n = || Arg::Number(super::count_f64(number));
+
+    let mut kinds: Vec<OpKind> = Vec::new();
+    let mut colours: Vec<&str> = Vec::new();
+    let mut runs: Vec<String> = Vec::new();
+    for op in &path.ops {
+        if !kinds.contains(&op.kind) {
+            kinds.push(op.kind);
+        }
+        let ink = inks.get(&op.row).map(String::as_str);
+        let kind = app.loc.tr(&format!("op-{}", op.kind.as_str()));
+        runs.push(ink.map_or_else(|| kind.clone(), |ink| format!("{kind} {ink}")));
+        if let Some(ink) = ink.filter(|ink| !colours.contains(ink)) {
+            colours.push(ink);
+        }
+    }
+
+    let hover = ui.rect_contains_pointer(rect);
+    if hover {
+        app.state
+            .set_highlight_layer(Some((object, Some(path.key.clone()))));
+    }
+    if ui.is_rect_visible(rect) {
+        if on {
+            ui.painter().rect_filled(rect, 2.0, p.tint);
+        } else if hover {
+            ui.painter().rect_filled(rect, 2.0, p.ground);
+        }
+        ui.painter().text(
+            Pos2::new(rect.left() + 38.0, rect.center().y),
+            egui::Align2::LEFT_CENTER,
+            app.loc.tr_args("tree-shape", &[("n", n())]),
+            font(
+                ui.ctx(),
+                12.0,
+                if on {
+                    Weight::Semibold
+                } else {
+                    Weight::Regular
+                },
+            ),
+            p.ink,
+        );
+        let mut x = kind_swatches(ui, &kinds, rect.right() - 6.0, rect.center().y);
+        for ink in colours.iter().rev() {
+            x -= 9.0;
+            let centre = Pos2::new(x + 4.0, rect.center().y);
+            ui.painter().circle_filled(centre, 4.0, parse_hex(ink));
+            // An outline, so that white ink still shows.
+            ui.painter()
+                .circle_stroke(centre, 4.0, Stroke::new(1.0_f32, p.line));
+            x -= 2.0;
+        }
+    }
+
+    let mut said = app.loc.tr_args(
+        "tree-shape-name",
+        &[("object", Arg::Text(object_label)), ("n", n())],
+    );
+    if !runs.is_empty() {
+        said = format!("{said}: {}", runs.join(", "));
+    }
+    response.widget_info(move || {
+        egui::WidgetInfo::selected(egui::WidgetType::Button, true, on, said.clone())
+    });
+    if response.clicked() {
+        let extend = ui.input(|i| i.modifiers.shift || i.modifiers.command);
+        if extend {
+            app.state.toggle_shape(object, path.key.clone());
+        } else {
+            app.state.select_shapes(&[(object, path.key.clone())]);
         }
     }
 }
@@ -428,7 +623,7 @@ fn quick_assign(ui: &mut egui::Ui, app: &mut App, p: crate::theme::Palette, now_
                 egui::WidgetInfo::labeled(egui::WidgetType::Button, true, said.clone())
             });
             if response.on_hover_text(&tool.name).clicked() {
-                app.state.assign_operation(kind, &tool.reference, now_ms);
+                app.assign_operation(kind, &tool.reference, now_ms);
             }
         }
     });
@@ -450,7 +645,7 @@ fn assign_entries(ui: &mut egui::Ui, app: &mut App, now_ms: u64) {
         }
     }
     if let Some((kind, tool)) = chosen {
-        app.state.assign_operation(kind, &tool, now_ms);
+        app.assign_operation(kind, &tool, now_ms);
     }
 }
 
@@ -506,7 +701,18 @@ fn op_rows(
             2.5,
         );
         let ink = if row.enabled { p.ink } else { p.muted };
-        let name = app.loc.tr(&format!("op-{}", row.kind.as_str()));
+        // Repeated operations are numbered, so each row has a name of its own.
+        let mut name = app.loc.tr(&format!("op-{}", row.kind.as_str()));
+        let nth = rows[..=index].iter().filter(|r| r.kind == row.kind).count();
+        if nth > 1 {
+            name = app.loc.tr_args(
+                "ops-nth",
+                &[
+                    ("name", Arg::Text(&name)),
+                    ("n", Arg::Number(super::count_f64(nth))),
+                ],
+            );
+        }
         ui.painter().text(
             Pos2::new(rect.left() + 50.0, rect.center().y - 8.0),
             egui::Align2::LEFT_CENTER,
@@ -521,7 +727,7 @@ fn op_rows(
         };
         let sub_rect = Rect::from_min_max(
             Pos2::new(rect.left() + 50.0, rect.center().y + 1.0),
-            Pos2::new(rect.right() - 62.0, rect.bottom()),
+            Pos2::new(rect.right() - 82.0, rect.bottom()),
         );
         ui.painter().with_clip_rect(sub_rect).text(
             Pos2::new(sub_rect.left(), rect.center().y + 8.0),
@@ -538,6 +744,14 @@ fn op_rows(
             font(ui.ctx(), 11.0, Weight::Regular),
             p.muted,
         );
+        // A pen row shows its ink, which is what tells two rows of one kind apart.
+        if let Some(ink) = &row.ink {
+            let at = Pos2::new(rect.right() - 74.0, rect.center().y + 8.0);
+            ui.painter()
+                .circle_filled(at, 4.0, parse_hex(ink).gamma_multiply(dim));
+            ui.painter()
+                .circle_stroke(at, 4.0, Stroke::new(1.0_f32, p.outline));
+        }
         let label = app.loc.tr("ops-select");
         let row_name = format!("{label}: {name}");
         response.widget_info(move || {
@@ -703,6 +917,36 @@ fn settings(
                 });
             });
             tool_tile(ui, app, row, p);
+            let can_add = app.state.can_add_selection_to_row(id);
+            let add = ui.add_enabled(
+                can_add,
+                egui::Button::new(text(
+                    ui.ctx(),
+                    app.loc.tr("ops-add-selection"),
+                    12.0,
+                    Weight::Medium,
+                    p.accent,
+                ))
+                .frame(false),
+            );
+            if add.clicked() {
+                app.state.add_selection_to_row(id, now_ms);
+            }
+            let can_remove = app.state.can_remove_selection_from_row(id);
+            let remove = ui.add_enabled(
+                can_remove,
+                egui::Button::new(text(
+                    ui.ctx(),
+                    app.loc.tr("ops-remove-selection"),
+                    12.0,
+                    Weight::Medium,
+                    p.accent,
+                ))
+                .frame(false),
+            );
+            if remove.clicked() {
+                app.state.remove_selection_from_row(id, now_ms);
+            }
             ink_colour(ui, app, id, p, now_ms);
             fill_settings(ui, app, id, p, now_ms);
             order_controls(ui, app, rows, index, p, now_ms);

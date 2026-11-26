@@ -28,6 +28,7 @@ fn labels(id: &str) -> String {
 fn all_enabled() -> Context {
     Context {
         has_selection: true,
+        has_whole_objects: true,
         can_undo: true,
         can_redo: true,
         has_project: true,

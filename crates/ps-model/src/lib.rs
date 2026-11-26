@@ -10,9 +10,10 @@ mod validate;
 
 pub use command::{
     AddAsset, AddMat, AddObject, AssignOperation, Command, CommandError, DocumentStore,
-    MERGE_WINDOW_MS, MergeKey, OverrideTarget, RemoveMat, RemoveObject, RemoveOperation, SetGuides,
-    SetJobSettings, SetMatMaterial, SetMirror, SetOpEnabled, SetOpFill, SetOpOrder, SetOverride,
-    SetPathGeometry, SetPenColour, SetRules, SetRunAfter, SetStartPoint, SetTransform, SplitPath,
+    MERGE_WINDOW_MS, MergeKey, OverrideTarget, RemoveMat, RemoveObject, RemoveOperation,
+    RemovePath, SetGuides, SetJobSettings, SetMatMaterial, SetMirror, SetOpEnabled, SetOpFill,
+    SetOpOrder, SetOverride, SetPathGeometry, SetPenColour, SetRules, SetRunAfter, SetStartPoint,
+    SetTransform, SplitPath,
 };
 pub use project::{
     EmbeddedFile, Loaded, MIGRATIONS, MIN_READER_VERSION, Migration, Project, ProjectError,

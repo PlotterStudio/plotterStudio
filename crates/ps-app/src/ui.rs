@@ -95,6 +95,10 @@ pub struct App {
     pub(crate) canvas_fitted: bool,
     /// Whether the layers panel is open (it folds to a thin strip).
     pub(crate) layers_open: bool,
+    /// The objects whose shapes are listed in the layers panel.
+    pub(crate) layers_expanded: std::collections::BTreeSet<ps_core::ObjectId>,
+    /// The shape selection last seen, so that a new one folds its object out only once.
+    pub(crate) layers_seen_shapes: Vec<(ps_core::ObjectId, ps_core::PathKey)>,
     /// Whether the Export screen shows the G-code listing.
     pub(crate) gcode_open: bool,
     /// The operations row whose settings are shown.
@@ -177,6 +181,8 @@ impl App {
             applied_theme: None,
             canvas_fitted: false,
             layers_open: true,
+            layers_expanded: std::collections::BTreeSet::new(),
+            layers_seen_shapes: Vec::new(),
             gcode_open: false,
             selected_row: None,
             pointer_mm: None,
@@ -448,13 +454,22 @@ impl App {
             .filter(|id| rows.iter().any(|r| r.id == *id))
             .or_else(|| rows.first().map(|r| r.id))
     }
+
+    /// Adds an operation to the selection and shows its settings, so that what is changed next
+    /// (the ink, say) is the new row and not one that was chosen before.
+    pub(crate) fn assign_operation(&mut self, kind: OpKind, tool: &str, now_ms: u64) {
+        if let Some(row) = self.state.assign_operation_row(kind, tool, now_ms) {
+            self.selected_row = Some(row);
+        }
+    }
 }
 
 /// The Prepare screen of the design: header, control bar, tool strip, layers, canvas with its mat
 /// tabs, operations and settings, status bar.
 fn prepare_screen(ctx: &egui::Context, app: &mut App, now_ms: u64) {
-    // A row sets this while the pointer is on it, so it must be cleared before the panels draw.
+    // A row sets these while the pointer is on it, so they must be cleared before the panels draw.
     app.state.set_highlight_row(None);
+    app.state.set_highlight_layer(None);
     chrome::prepare_header(ctx, app, now_ms);
     chrome::control_bar(ctx, app, now_ms);
     chrome::status_bar(ctx, app, now_ms);
@@ -1272,11 +1287,10 @@ fn draw_objects(painter: &egui::Painter, app: &App, origin: egui::Pos2) {
     let state = &app.state;
     let zoom = state.viewport().zoom();
     let tol = flatten_tolerance_mm(zoom);
-    let selected = state.selection().objects();
     let mat = state.current_mat();
     for object in mat.objects.values().filter(|o| !o.hidden) {
-        let is_selected = selected.contains(&object.id);
         for path in object.paths.iter() {
+            let is_selected = state.selection().includes_path(object.id, &path.key);
             let kind = path.ops.first().map(|op| op.kind);
             let [r, g, b] = kind.map_or([60, 60, 60], colour_of);
             let colour = if is_selected {
@@ -1413,11 +1427,11 @@ fn draw_start_points(painter: &egui::Painter, app: &App, origin: egui::Pos2) {
             Some((ids, delta)) if ids.contains(&object.id) => *delta * object.transform,
             _ => object.transform,
         };
-        for path in object
-            .paths
-            .iter()
-            .filter(|p| !p.geom.is_empty() && start_is_meaningful(p))
-        {
+        for path in object.paths.iter().filter(|p| {
+            !p.geom.is_empty()
+                && start_is_meaningful(p)
+                && state.selection().includes_path(object.id, &p.key)
+        }) {
             // Where the cut really begins: a path the user has not given a start follows the
             // compiler's own rule for the tool that draws it, so the marker never lies.
             let drive = path

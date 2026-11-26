@@ -187,7 +187,7 @@ pub(super) fn assign_menu(ui: &mut egui::Ui, app: &mut App, now_ms: u64) {
         }
     });
     if let Some((kind, tool)) = chosen {
-        app.state.assign_operation(kind, &tool, now_ms);
+        app.assign_operation(kind, &tool, now_ms);
     }
 }
 

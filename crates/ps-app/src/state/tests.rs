@@ -1120,6 +1120,7 @@ fn text_paths_have_distinct_keys() {
 // ---- the operations table rows ----
 
 const PEN: &str = "pen.fineliner-black-0.4@1.0.0";
+const SCORE: &str = "generic.scoring-stylus@1.0.0";
 
 /// A 100 x 50 mm rectangle at `x` on the mat, left selected.
 fn rect_at(s: &mut AppState, x: f64) {
@@ -1132,18 +1133,106 @@ fn a_mat_with_no_operations_has_no_rows() {
 }
 
 #[test]
-fn assigning_the_same_tool_and_kind_twice_shares_one_row() {
+fn assigning_the_same_tool_and_kind_twice_makes_two_rows() {
     let mut s = state();
     rect_at(&mut s, 10.0);
-    assert!(s.assign_operation(OpKind::Cut, BLADE, 0));
+    let first = s.assign_operation_row(OpKind::Cut, BLADE, 0).unwrap();
     rect_at(&mut s, 150.0);
-    assert!(s.assign_operation(OpKind::Cut, BLADE, 0));
+    let second = s.assign_operation_row(OpKind::Cut, BLADE, 0).unwrap();
+    assert_ne!(first, second);
+    let ids: Vec<OpRowId> = s.operation_rows().iter().map(|r| r.id).collect();
+    assert_eq!(ids, vec![first, second], "in the order they were added");
+}
+
+#[test]
+fn one_object_can_be_drawn_twice_in_two_inks() {
+    let mut s = state();
+    rect_at(&mut s, 10.0);
+    let blue = s.assign_operation_row(OpKind::Draw, PEN, 0).unwrap();
+    let red = s.assign_operation_row(OpKind::Draw, PEN, 1).unwrap();
+    assert!(s.set_row_pen_colour(blue, Some("#1E88E5"), 2));
+    assert!(s.set_row_pen_colour(red, Some("#D32F2F"), 3));
+    assert_eq!(s.row_pen_colour(blue).as_deref(), Some("#1E88E5"));
+    assert_eq!(s.row_pen_colour(red).as_deref(), Some("#D32F2F"));
+    let mat = s.current_mat();
+    assert_eq!(mat.objects.values().next().unwrap().paths[0].ops.len(), 2);
+}
+
+#[test]
+fn a_new_operation_runs_last_even_on_the_first_object() {
+    let mut s = state();
+    rect_at(&mut s, 10.0);
+    s.assign_operation(OpKind::Cut, BLADE, 0);
+    rect_at(&mut s, 150.0);
+    s.assign_operation(OpKind::Draw, PEN, 0);
+    let first_object = *s.current_mat().objects.keys().next().unwrap();
+    s.select_object(first_object);
+    let added = s.assign_operation_row(OpKind::Score, SCORE, 1).unwrap();
+    assert_eq!(s.operation_rows()[2].id, added);
+    s.run_command("edit.undo", 2);
+    assert_eq!(
+        s.operation_rows().len(),
+        2,
+        "one undo removes the operation"
+    );
+}
+
+#[test]
+fn the_selection_can_join_an_existing_row_with_its_settings() {
+    let mut s = state();
+    rect_at(&mut s, 10.0);
+    let row = s.assign_operation_row(OpKind::Draw, PEN, 0).unwrap();
+    assert!(s.set_row_pen_colour(row, Some("#D32F2F"), 1));
+    assert!(!s.can_add_selection_to_row(row), "already on it");
+    rect_at(&mut s, 150.0);
+    assert!(s.can_add_selection_to_row(row));
+    assert!(s.add_selection_to_row(row, 2));
     let rows = s.operation_rows();
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].paths, 2);
     assert!(
         (rows[0].length_mm - 600.0).abs() < 1e-6,
         "two 100 x 50 rectangles"
+    );
+    let inks: Vec<Option<String>> = s
+        .current_mat()
+        .objects
+        .values()
+        .flat_map(|o| o.paths.iter())
+        .flat_map(|p| p.ops.iter())
+        .map(|op| op.tool.pen_colour.clone())
+        .collect();
+    assert_eq!(inks, vec![Some("#D32F2F".to_owned()); 2]);
+    assert!(!s.add_selection_to_row(row, 3), "nothing left to add");
+    s.run_command("edit.undo", 4);
+    assert_eq!(s.operation_rows()[0].paths, 1);
+}
+
+#[test]
+fn a_path_joining_a_row_that_is_off_stays_off() {
+    let mut s = state();
+    rect_at(&mut s, 10.0);
+    let row = s.assign_operation_row(OpKind::Cut, BLADE, 0).unwrap();
+    assert!(s.set_operation_row_enabled(row, false, 1));
+    rect_at(&mut s, 150.0);
+    assert!(s.add_selection_to_row(row, 2));
+    let got = &s.operation_rows()[0];
+    assert!(!got.enabled && !got.partly);
+}
+
+#[test]
+fn rows_of_one_kind_and_tool_count_their_own_paths() {
+    let mut s = state();
+    rect_at(&mut s, 10.0);
+    s.assign_operation(OpKind::Cut, BLADE, 0);
+    rect_at(&mut s, 150.0);
+    s.assign_operation(OpKind::Cut, BLADE, 0);
+    let rows = s.operation_rows();
+    assert_eq!(rows.len(), 2);
+    assert_eq!((rows[0].paths, rows[1].paths), (1, 1));
+    assert!(
+        (rows[1].length_mm - 300.0).abs() < 1e-6,
+        "one 100 x 50 rectangle"
     );
 }
 
@@ -1196,10 +1285,9 @@ fn moving_a_row_is_one_undo_step() {
 fn disabling_a_row_turns_off_all_its_operations_in_one_undo_step() {
     let mut s = state();
     rect_at(&mut s, 10.0);
-    s.assign_operation(OpKind::Cut, BLADE, 0);
+    let row = s.assign_operation_row(OpKind::Cut, BLADE, 0).unwrap();
     rect_at(&mut s, 150.0);
-    s.assign_operation(OpKind::Cut, BLADE, 0);
-    let row = s.operation_rows()[0].id;
+    assert!(s.add_selection_to_row(row, 0));
     assert!(s.set_operation_row_enabled(row, false, 1));
     assert!(!s.operation_rows()[0].enabled);
     assert!(
@@ -1218,11 +1306,13 @@ fn disabling_a_row_turns_off_all_its_operations_in_one_undo_step() {
 fn a_row_with_some_operations_off_is_partly_enabled() {
     let mut s = state();
     rect_at(&mut s, 10.0);
-    s.assign_operation(OpKind::Cut, BLADE, 0);
+    let cut = s.assign_operation_row(OpKind::Cut, BLADE, 0).unwrap();
+    rect_at(&mut s, 150.0);
+    assert!(s.add_selection_to_row(cut, 0));
     let mat = s.current_mat();
     let object = mat.objects.values().next().unwrap();
     let (key, op) = (object.paths[0].key.clone(), object.paths[0].ops[0].clone());
-    // Turn one path's operation off directly, then add another path on the same row.
+    // Turn one path's operation off directly, leaving the other running.
     let off: Box<dyn ModelCommand> = Box::new(SetOpEnabled {
         mat: s.mat_id(),
         object: object.id,
@@ -1231,8 +1321,6 @@ fn a_row_with_some_operations_off_is_partly_enabled() {
         enabled: false,
     });
     s.commit(&[off], 0);
-    rect_at(&mut s, 150.0);
-    s.assign_operation(OpKind::Cut, BLADE, 0);
     let row = &s.operation_rows()[0];
     assert!(row.partly);
 }
@@ -1916,7 +2004,7 @@ fn removing_a_row_takes_its_operation_off_every_path_and_is_one_undo_step() {
     let mut s = state();
     let row = draw_row(&mut s);
     draw_rect(&mut s, p(60.0, 10.0), p(90.0, 40.0), 1);
-    s.assign_operation(OpKind::Draw, PEN_TOOL, 1);
+    assert!(s.add_selection_to_row(row, 1));
     assert_eq!(s.operation_rows().len(), 1, "both rectangles share the row");
     assert!(s.remove_row(row, 2));
     assert_eq!(s.operation_rows().len(), 0);
@@ -2172,4 +2260,294 @@ fn the_speed_and_force_ranges_stop_at_what_the_machine_can_do() {
         !s.set_row_param(row, "speed", 41.0, 0),
         "a value the machine would clamp is refused"
     );
+}
+// ---- selecting shapes within an object ----
+
+const CTRL: Mods = Mods {
+    command: true,
+    shift: false,
+    alt: false,
+};
+
+const SHIFT: Mods = Mods {
+    command: false,
+    shift: true,
+    alt: false,
+};
+
+const CTRL_SHIFT: Mods = Mods {
+    command: true,
+    shift: true,
+    alt: false,
+};
+
+/// One object like an imported drawing: a frame with two small squares inside it, which on the
+/// mat are `left` at (20..40, 20..40), `right` at (60..80, 20..40) and `frame` at (10..110,
+/// 10..110). The frame comes last, so it lies on top of the squares.
+fn lettered(s: &mut AppState) -> (ObjectId, [PathKey; 3]) {
+    let id = ObjectId::new();
+    let keys = ["left", "right", "frame"].map(PathKey::source);
+    let geoms = [
+        ps_geometry::Path::rect(10.0, 10.0, 20.0, 20.0),
+        ps_geometry::Path::rect(50.0, 10.0, 20.0, 20.0),
+        ps_geometry::Path::rect(0.0, 0.0, 100.0, 100.0),
+    ];
+    let paths = keys
+        .iter()
+        .zip(geoms)
+        .map(|(key, geom)| {
+            Arc::new(ShapePath {
+                key: key.clone(),
+                geom,
+                fill_rule: FillRule::NonZero,
+                style: SourceStyle::default(),
+                ops: Vec::new(),
+                start_locked: false,
+            })
+        })
+        .collect();
+    let add: Box<dyn ModelCommand> = Box::new(AddObject {
+        mat: s.mat_id(),
+        object: PlacedObject {
+            id,
+            source: None,
+            transform: Affine::translate((10.0, 10.0)),
+            group: None,
+            attach: None,
+            paths: Arc::new(paths),
+            locked: false,
+            hidden: false,
+        },
+    });
+    assert!(s.commit_all(&[add], 0));
+    s.run_command("tool.select", 0);
+    (id, keys)
+}
+
+const IN_LEFT: (f64, f64) = (30.0, 30.0);
+const IN_RIGHT: (f64, f64) = (70.0, 30.0);
+const IN_FRAME_ONLY: (f64, f64) = (60.0, 90.0);
+const OFF_EVERYTHING: (f64, f64) = (250.0, 250.0);
+
+fn click(s: &mut AppState, (x, y): (f64, f64), mods: Mods) {
+    s.canvas_event(CanvasEvent::Press(p(x, y)), mods, 0);
+    s.canvas_event(CanvasEvent::Release(p(x, y)), mods, 0);
+}
+
+/// A double click as the window delivers it: a click, then the double click ahead of the second
+/// press and release.
+fn double_click(s: &mut AppState, at: (f64, f64)) {
+    click(s, at, NONE);
+    s.canvas_event(CanvasEvent::DoubleClick(p(at.0, at.1)), NONE, 0);
+    click(s, at, NONE);
+}
+
+fn selected_shapes(s: &AppState) -> Vec<PathKey> {
+    let mut keys: Vec<PathKey> = s.selection().shapes().map(|(_, k)| k.clone()).collect();
+    keys.sort_by_key(ToString::to_string);
+    keys
+}
+
+/// The row of every operation on a shape.
+fn rows_on(s: &AppState, object: ObjectId, key: &PathKey) -> Vec<OpRowId> {
+    s.current_mat().objects[&object]
+        .paths
+        .iter()
+        .find(|p| p.key == *key)
+        .map(|p| p.ops.iter().map(|o| o.row).collect())
+        .unwrap_or_default()
+}
+
+#[test]
+fn double_clicking_selects_one_shape_and_a_click_then_picks_another() {
+    let mut s = state();
+    let (id, [left, right, frame]) = lettered(&mut s);
+    click(&mut s, IN_LEFT, NONE);
+    assert!(!s.has_shape_selection(), "one click takes the whole object");
+    double_click(&mut s, IN_LEFT);
+    assert_eq!(selected_shapes(&s), vec![left]);
+    assert_eq!(s.selection().objects(), vec![id]);
+    click(&mut s, IN_RIGHT, NONE);
+    assert_eq!(selected_shapes(&s), vec![right]);
+    click(&mut s, IN_FRAME_ONLY, NONE);
+    assert_eq!(selected_shapes(&s), vec![frame]);
+}
+
+#[test]
+fn shift_clicking_adds_and_removes_shapes() {
+    let mut s = state();
+    let (_, [left, right, _]) = lettered(&mut s);
+    double_click(&mut s, IN_LEFT);
+    click(&mut s, IN_RIGHT, SHIFT);
+    assert_eq!(selected_shapes(&s), vec![left.clone(), right.clone()]);
+    click(&mut s, IN_LEFT, SHIFT);
+    assert_eq!(selected_shapes(&s), vec![right]);
+}
+
+#[test]
+fn command_clicking_selects_a_shape_without_selecting_the_object_first() {
+    let mut s = state();
+    let (_, [left, right, _]) = lettered(&mut s);
+    click(&mut s, IN_LEFT, CTRL);
+    assert_eq!(selected_shapes(&s), vec![left.clone()]);
+    click(&mut s, IN_RIGHT, CTRL_SHIFT);
+    assert_eq!(selected_shapes(&s), vec![left, right]);
+}
+
+#[test]
+fn a_command_drag_still_moves_the_whole_object() {
+    let mut s = state();
+    let (id, _) = lettered(&mut s);
+    let before = s.current_mat().objects[&id].transform.as_coeffs()[4];
+    s.canvas_event(CanvasEvent::Press(p(30.0, 30.0)), CTRL, 0);
+    s.canvas_event(CanvasEvent::Drag(p(55.0, 30.0)), CTRL, 0);
+    s.canvas_event(CanvasEvent::Release(p(55.0, 30.0)), CTRL, 0);
+    let after = s.current_mat().objects[&id].transform.as_coeffs()[4];
+    assert!((after - before - 25.0).abs() < 1e-9);
+    assert!(!s.has_shape_selection());
+}
+
+#[test]
+fn escape_returns_to_the_whole_object_and_clicking_away_clears() {
+    let mut s = state();
+    let (id, _) = lettered(&mut s);
+    double_click(&mut s, IN_LEFT);
+    s.canvas_event(CanvasEvent::Escape, NONE, 0);
+    assert!(!s.has_shape_selection());
+    assert_eq!(s.selection().objects(), vec![id]);
+    double_click(&mut s, IN_LEFT);
+    click(&mut s, OFF_EVERYTHING, NONE);
+    assert!(s.selection().is_empty());
+}
+
+#[test]
+fn a_box_drag_inside_an_entered_object_takes_the_shapes_it_encloses() {
+    let mut s = state();
+    let (id, [left, right, _]) = lettered(&mut s);
+    double_click(&mut s, IN_FRAME_ONLY);
+    let before = s.current_mat().objects[&id].transform;
+    s.canvas_event(CanvasEvent::Press(p(15.0, 15.0)), NONE, 0);
+    s.canvas_event(CanvasEvent::Drag(p(95.0, 55.0)), NONE, 0);
+    s.canvas_event(CanvasEvent::Release(p(95.0, 55.0)), NONE, 0);
+    assert_eq!(selected_shapes(&s), vec![left, right]);
+    assert_eq!(s.current_mat().objects[&id].transform, before, "no move");
+}
+
+#[test]
+fn an_object_with_one_path_has_no_shapes_to_enter() {
+    let mut s = state();
+    rect_at(&mut s, 10.0);
+    s.run_command("tool.select", 0);
+    double_click(&mut s, (10.0, 10.0));
+    assert!(!s.has_shape_selection());
+    assert_eq!(s.selection().len(), 1);
+}
+
+#[test]
+fn shapes_of_one_object_can_be_drawn_in_different_inks() {
+    let mut s = state();
+    let (id, [left, right, frame]) = lettered(&mut s);
+    double_click(&mut s, IN_LEFT);
+    assert_eq!(s.selected_path_count(), Some(1));
+    let blue = s.assign_operation_row(OpKind::Draw, PEN, 0).unwrap();
+    assert!(s.set_row_pen_colour(blue, Some("#1E88E5"), 1));
+    click(&mut s, IN_RIGHT, NONE);
+    let red = s.assign_operation_row(OpKind::Draw, PEN, 2).unwrap();
+    assert!(s.set_row_pen_colour(red, Some("#D32F2F"), 3));
+    assert_eq!(rows_on(&s, id, &left), vec![blue]);
+    assert_eq!(rows_on(&s, id, &right), vec![red]);
+    assert_eq!(rows_on(&s, id, &frame), Vec::<OpRowId>::new());
+    let rows = s.operation_rows();
+    assert_eq!((rows[0].paths, rows[1].paths), (1, 1));
+    assert_eq!(rows[0].ink.as_deref(), Some("#1E88E5"));
+    assert_eq!(rows[1].ink.as_deref(), Some("#D32F2F"));
+}
+
+#[test]
+fn shapes_can_join_and_leave_a_row() {
+    let mut s = state();
+    let (id, [left, right, frame]) = lettered(&mut s);
+    click(&mut s, IN_FRAME_ONLY, NONE);
+    let black = s.assign_operation_row(OpKind::Draw, PEN, 0).unwrap();
+    double_click(&mut s, IN_LEFT);
+    assert!(s.can_remove_selection_from_row(black));
+    assert!(!s.can_add_selection_to_row(black));
+    assert!(s.remove_selection_from_row(black, 1));
+    assert_eq!(rows_on(&s, id, &left), Vec::<OpRowId>::new());
+    assert_eq!(rows_on(&s, id, &right), vec![black]);
+    assert_eq!(rows_on(&s, id, &frame), vec![black]);
+    assert!(!s.can_remove_selection_from_row(black));
+    assert!(s.add_selection_to_row(black, 2));
+    assert_eq!(rows_on(&s, id, &left), vec![black]);
+}
+
+#[test]
+fn choosing_a_row_selects_just_the_shapes_it_runs_on() {
+    let mut s = state();
+    let (id, [left, _, _]) = lettered(&mut s);
+    double_click(&mut s, IN_LEFT);
+    let row = s.assign_operation_row(OpKind::Draw, PEN, 0).unwrap();
+    click(&mut s, OFF_EVERYTHING, NONE);
+    assert!(s.select_row_objects(row));
+    assert_eq!(selected_shapes(&s), vec![left]);
+
+    click(&mut s, OFF_EVERYTHING, NONE);
+    click(&mut s, IN_FRAME_ONLY, NONE);
+    let all = s.assign_operation_row(OpKind::Cut, BLADE, 1).unwrap();
+    click(&mut s, OFF_EVERYTHING, NONE);
+    assert!(s.select_row_objects(all));
+    assert!(!s.has_shape_selection(), "every shape: the whole object");
+    assert_eq!(s.selection().objects(), vec![id]);
+}
+
+#[test]
+fn deleting_selected_shapes_leaves_the_rest_of_the_object() {
+    let mut s = state();
+    let (id, [left, right, frame]) = lettered(&mut s);
+    double_click(&mut s, IN_LEFT);
+    s.run_command("edit.delete", 1);
+    let keys: Vec<PathKey> = s.current_mat().objects[&id]
+        .paths
+        .iter()
+        .map(|p| p.key.clone())
+        .collect();
+    assert_eq!(keys, vec![right, frame]);
+    assert!(s.selection().is_empty());
+    s.run_command("edit.undo", 2);
+    assert_eq!(s.current_mat().objects[&id].paths[0].key, left);
+}
+
+#[test]
+fn deleting_every_shape_of_an_object_deletes_the_object() {
+    let mut s = state();
+    let _ = lettered(&mut s);
+    double_click(&mut s, IN_LEFT);
+    click(&mut s, IN_RIGHT, SHIFT);
+    click(&mut s, IN_FRAME_ONLY, SHIFT);
+    s.run_command("edit.delete", 1);
+    assert_eq!(objects(&s), 0);
+}
+
+#[test]
+fn moving_and_copying_leave_a_shape_selection_alone() {
+    let mut s = state();
+    let (id, _) = lettered(&mut s);
+    double_click(&mut s, IN_LEFT);
+    let before = s.current_mat().objects[&id].transform;
+    assert!(s.selection_bounds().is_none(), "no box or handles");
+    assert!(!s.context().has_whole_objects);
+    s.run_command("nudge.right", 1);
+    s.run_command("edit.duplicate", 2);
+    assert!(!s.rotate_selection(90.0, 3));
+    assert_eq!(objects(&s), 1);
+    assert_eq!(s.current_mat().objects[&id].transform, before);
+}
+
+#[test]
+fn undoing_away_a_selected_shape_drops_it_from_the_selection() {
+    let mut s = state();
+    let _ = lettered(&mut s);
+    double_click(&mut s, IN_LEFT);
+    s.run_command("edit.undo", 1);
+    assert!(s.selection().is_empty());
 }

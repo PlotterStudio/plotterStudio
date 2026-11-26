@@ -206,3 +206,87 @@ fn a_shape_whose_operations_are_switched_off_is_not_drawn() {
         "the outline is gone: {on} lines before, {off} after"
     );
 }
+
+#[test]
+fn only_the_selected_shape_of_an_object_is_drawn_in_the_accent_colour() {
+    let mut s = sized_state();
+    let square = |key: &str, x: f64| {
+        std::sync::Arc::new(ps_model::ShapePath {
+            key: ps_core::PathKey::source(key),
+            geom: Path::rect(x, 50.0, 50.0, 50.0),
+            fill_rule: FillRule::NonZero,
+            style: ps_model::SourceStyle::default(),
+            ops: Vec::new(),
+            start_locked: false,
+        })
+    };
+    let id = ps_core::ObjectId::new();
+    let add: Box<dyn ps_model::Command> = Box::new(ps_model::AddObject {
+        mat: s.mat_id(),
+        object: ps_model::PlacedObject {
+            id,
+            source: None,
+            transform: Affine::IDENTITY,
+            group: None,
+            attach: None,
+            paths: std::sync::Arc::new(vec![square("a", 40.0), square("b", 150.0)]),
+            locked: false,
+            hidden: false,
+        },
+    });
+    assert!(s.commit_all(&[add], 0));
+    s.select_shapes(&[(id, ps_core::PathKey::source("a"))]);
+    let image = render(&s, 400, 300);
+    let chosen = at(&s, &image, 65.0, 50.0);
+    let other = at(&s, &image, 175.0, 50.0);
+    assert!(near(chosen, ACCENT, 8), "{chosen:?}");
+    assert!(!near(other, ACCENT, 8), "{other:?}");
+}
+
+#[test]
+fn a_shape_hovered_in_the_layers_list_stays_dark_while_everything_else_fades() {
+    let mut s = sized_state();
+    let square = |key: &str, x: f64| {
+        std::sync::Arc::new(ps_model::ShapePath {
+            key: ps_core::PathKey::source(key),
+            geom: Path::rect(x, 50.0, 50.0, 50.0),
+            fill_rule: FillRule::NonZero,
+            style: ps_model::SourceStyle::default(),
+            ops: Vec::new(),
+            start_locked: false,
+        })
+    };
+    let id = ps_core::ObjectId::new();
+    let add: Box<dyn ps_model::Command> = Box::new(ps_model::AddObject {
+        mat: s.mat_id(),
+        object: ps_model::PlacedObject {
+            id,
+            source: None,
+            transform: Affine::IDENTITY,
+            group: None,
+            attach: None,
+            paths: std::sync::Arc::new(vec![square("a", 40.0), square("b", 150.0)]),
+            locked: false,
+            hidden: false,
+        },
+    });
+    assert!(s.commit_all(&[add], 0));
+    s.select_objects(&[]);
+    // The middle of each square's left side. The line is thin and may fall between pixels, so
+    // the darkest within a millimetre counts; a faded line is nearly as light as the mat.
+    let dark = |s: &AppState, x: f64| {
+        let image = render(s, 400, 300);
+        (-4..=4).any(|step| at(s, &image, x + f64::from(step) * 0.25, 75.0)[0] < 150)
+    };
+    assert!(dark(&s, 40.0) && dark(&s, 150.0), "both before hovering");
+
+    s.set_highlight_layer(Some((id, Some(ps_core::PathKey::source("a")))));
+    assert!(dark(&s, 40.0), "the hovered shape");
+    assert!(!dark(&s, 150.0), "its neighbour");
+
+    s.set_highlight_layer(Some((id, None)));
+    assert!(dark(&s, 40.0) && dark(&s, 150.0), "the whole object");
+
+    s.set_highlight_layer(None);
+    assert!(dark(&s, 40.0) && dark(&s, 150.0), "nothing hovered");
+}

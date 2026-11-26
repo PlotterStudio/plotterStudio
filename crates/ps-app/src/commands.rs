@@ -164,6 +164,8 @@ impl Shortcut {
 enum Needs {
     Nothing,
     Selection,
+    /// Whole objects, which can be moved and copied; shapes inside one cannot.
+    Objects,
     Undo,
     Redo,
     Project,
@@ -180,6 +182,8 @@ enum Needs {
 pub struct Context {
     /// Something is selected.
     pub has_selection: bool,
+    /// Only whole objects are selected, so they can be moved, copied and arranged.
+    pub has_whole_objects: bool,
     /// There is something to undo.
     pub can_undo: bool,
     /// There is something to redo.
@@ -257,7 +261,7 @@ const COMMANDS: &[Command] = &[
         "edit.duplicate",
         "cmd-edit-duplicate",
         Some("Mod+D"),
-        Needs::Selection,
+        Needs::Objects,
     ),
     cmd(
         "edit.select-all",
@@ -395,116 +399,106 @@ const COMMANDS: &[Command] = &[
         "arrange.align-left",
         "cmd-arrange-align-left",
         None,
-        Needs::Selection,
+        Needs::Objects,
     ),
     cmd(
         "arrange.align-right",
         "cmd-arrange-align-right",
         None,
-        Needs::Selection,
+        Needs::Objects,
     ),
     cmd(
         "arrange.align-top",
         "cmd-arrange-align-top",
         None,
-        Needs::Selection,
+        Needs::Objects,
     ),
     cmd(
         "arrange.align-bottom",
         "cmd-arrange-align-bottom",
         None,
-        Needs::Selection,
+        Needs::Objects,
     ),
     cmd(
         "arrange.align-centre-h",
         "cmd-arrange-align-centre-h",
         None,
-        Needs::Selection,
+        Needs::Objects,
     ),
     cmd(
         "arrange.align-centre-v",
         "cmd-arrange-align-centre-v",
         None,
-        Needs::Selection,
+        Needs::Objects,
     ),
     cmd(
         "arrange.distribute-h",
         "cmd-arrange-distribute-h",
         None,
-        Needs::Selection,
+        Needs::Objects,
     ),
     cmd(
         "arrange.distribute-v",
         "cmd-arrange-distribute-v",
         None,
-        Needs::Selection,
+        Needs::Objects,
     ),
     cmd(
         "arrange.mirror-h",
         "cmd-arrange-mirror-h",
         None,
-        Needs::Selection,
+        Needs::Objects,
     ),
     cmd(
         "arrange.mirror-v",
         "cmd-arrange-mirror-v",
         None,
-        Needs::Selection,
+        Needs::Objects,
     ),
     cmd(
         "arrange.rotate-cw",
         "cmd-arrange-rotate-cw",
         None,
-        Needs::Selection,
+        Needs::Objects,
     ),
     cmd(
         "arrange.rotate-ccw",
         "cmd-arrange-rotate-ccw",
         None,
-        Needs::Selection,
+        Needs::Objects,
     ),
-    cmd(
-        "nudge.left",
-        "cmd-nudge-left",
-        Some("Left"),
-        Needs::Selection,
-    ),
+    cmd("nudge.left", "cmd-nudge-left", Some("Left"), Needs::Objects),
     cmd(
         "nudge.right",
         "cmd-nudge-right",
         Some("Right"),
-        Needs::Selection,
+        Needs::Objects,
     ),
-    cmd("nudge.up", "cmd-nudge-up", Some("Up"), Needs::Selection),
-    cmd(
-        "nudge.down",
-        "cmd-nudge-down",
-        Some("Down"),
-        Needs::Selection,
-    ),
+    cmd("nudge.up", "cmd-nudge-up", Some("Up"), Needs::Objects),
+    cmd("nudge.down", "cmd-nudge-down", Some("Down"), Needs::Objects),
     cmd(
         "nudge.left-big",
         "cmd-nudge-left-big",
         Some("Shift+Left"),
-        Needs::Selection,
+        Needs::Objects,
     ),
     cmd(
         "nudge.right-big",
         "cmd-nudge-right-big",
         Some("Shift+Right"),
-        Needs::Selection,
+        Needs::Objects,
     ),
     cmd(
         "nudge.up-big",
         "cmd-nudge-up-big",
         Some("Shift+Up"),
-        Needs::Selection,
+        Needs::Objects,
     ),
     cmd(
         "nudge.down-big",
         "cmd-nudge-down-big",
         Some("Shift+Down"),
-        Needs::Selection,
+        Needs::Objects,
     ),
 ];
 
@@ -675,6 +669,7 @@ impl Registry {
         self.get(id).is_some_and(|c| match c.needs {
             Needs::Nothing => true,
             Needs::Selection => ctx.has_selection,
+            Needs::Objects => ctx.has_whole_objects,
             Needs::Undo => ctx.can_undo,
             Needs::Redo => ctx.can_redo,
             Needs::Project => ctx.has_project,

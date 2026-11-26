@@ -26,6 +26,22 @@ impl Item {
             node: None,
         }
     }
+
+    /// One shape (path) of an object.
+    #[must_use]
+    pub fn shape(object: ObjectId, path: PathKey) -> Self {
+        Self {
+            object,
+            path: Some(path),
+            node: None,
+        }
+    }
+
+    /// Whether this is a shape selected on its own. A node counts as its whole object.
+    #[must_use]
+    pub fn is_shape(&self) -> bool {
+        self.path.is_some() && self.node.is_none()
+    }
 }
 
 /// What is selected.
@@ -86,9 +102,61 @@ impl Selection {
         self.items.insert(item)
     }
 
-    /// Adds a whole object; true if it was not already selected.
+    /// Adds a whole object, which takes the place of any of its shapes; true if it was not
+    /// already selected whole.
     pub fn add_object(&mut self, object: ObjectId) -> bool {
+        self.items.retain(|i| i.object != object || !i.is_shape());
         self.add(Item::object(object))
+    }
+
+    /// The shapes selected on their own, as opposed to whole objects.
+    pub fn shapes(&self) -> impl Iterator<Item = (ObjectId, &PathKey)> {
+        self.items
+            .iter()
+            .filter(|i| i.is_shape())
+            .filter_map(|i| Some((i.object, i.path.as_ref()?)))
+    }
+
+    /// Whether any shape is selected on its own.
+    #[must_use]
+    pub fn has_shapes(&self) -> bool {
+        self.items.iter().any(Item::is_shape)
+    }
+
+    /// Whether a path is selected, on its own or as part of its whole object.
+    #[must_use]
+    pub fn includes_path(&self, object: ObjectId, path: &PathKey) -> bool {
+        self.items
+            .iter()
+            .filter(|i| i.object == object)
+            .any(|i| !i.is_shape() || i.path.as_ref() == Some(path))
+    }
+
+    /// Selects exactly these shapes.
+    pub fn set_shapes(&mut self, shapes: &[(ObjectId, PathKey)]) {
+        self.items = shapes
+            .iter()
+            .map(|(o, p)| Item::shape(*o, p.clone()))
+            .collect();
+    }
+
+    /// Adds a shape, which takes the place of its whole object.
+    pub fn add_shape(&mut self, object: ObjectId, path: PathKey) {
+        self.items.retain(|i| i.object != object || i.is_shape());
+        self.items.insert(Item::shape(object, path));
+    }
+
+    /// Adds the shape if it is not selected on its own, removes it if it is.
+    pub fn toggle_shape(&mut self, object: ObjectId, path: PathKey) {
+        if !self.items.remove(&Item::shape(object, path.clone())) {
+            self.add_shape(object, path);
+        }
+    }
+
+    /// Drops the shapes and nodes whose path no longer exists (after a cut, a delete or an undo).
+    pub fn retain_paths(&mut self, exists: impl Fn(ObjectId, &PathKey) -> bool) {
+        self.items
+            .retain(|i| i.path.as_ref().is_none_or(|p| exists(i.object, p)));
     }
 
     /// Adds the object if it is not selected, removes it if it is.

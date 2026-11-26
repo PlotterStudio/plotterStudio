@@ -18,8 +18,8 @@ use ps_library::{Calibration, LibrarySnapshot, MachineProfile, Settings, builtin
 use ps_model::{
     AddMat, AddObject, AssignOperation, Command as ModelCommand, Document, DocumentStore, Guide,
     GuideAxis, Mat, MatSize, OpKind, Operation, ParamOverrides, PlacedObject, Project, ProjectMeta,
-    ReadOnly, RemoveMat, RemoveObject, SetGuides, SetMatMaterial, SetOpEnabled, SetOpOrder,
-    SetRunAfter, SetTransform, ShapePath, SourceStyle, ToolSlotRef, validate,
+    ReadOnly, RemoveMat, RemoveObject, RemovePath, SetGuides, SetMatMaterial, SetOpEnabled,
+    SetOpOrder, SetRunAfter, SetTransform, ShapePath, SourceStyle, ToolSlotRef, validate,
 };
 use ps_render::{Candidate, Pickable, SnapKind, Viewport};
 
@@ -94,6 +94,8 @@ pub struct OperationRow {
     pub tool_name: String,
     /// The holder the tool goes in, for display; empty when the tool lists none.
     pub holder: String,
+    /// The ink of a pen row as `#RRGGBB`; `None` when the tool is not a pen.
+    pub ink: Option<String>,
     /// How many paths carry the row.
     pub paths: usize,
     /// The total line length of those paths, in millimetres.
@@ -390,6 +392,7 @@ pub struct AppState {
     text_open: bool,
     snapping: bool,
     highlight_row: Option<OpRowId>,
+    highlight_layer: Option<(ObjectId, Option<PathKey>)>,
     last_snap: Option<(Point, SnapKind)>,
     /// Where the pointer last was over the canvas, for tools that act on what is under it.
     hover_world: Option<Point>,
@@ -494,6 +497,7 @@ impl AppState {
             text_open: false,
             snapping: true,
             highlight_row: None,
+            highlight_layer: None,
             last_snap: None,
             hover_world: None,
             clock_ms: 0,
@@ -729,6 +733,7 @@ impl AppState {
     pub fn context(&self) -> Context {
         Context {
             has_selection: !self.selection.is_empty(),
+            has_whole_objects: !self.selection.is_empty() && !self.selection.has_shapes(),
             can_undo: self.can_undo(),
             can_redo: self.can_redo(),
             has_project: true,
@@ -810,11 +815,38 @@ impl AppState {
         self.compiling
     }
 
-    /// How many paths the selected objects have; `None` when nothing is selected.
+    /// How many paths are selected; `None` when nothing is selected.
     #[must_use]
     pub fn selected_path_count(&self) -> Option<usize> {
-        let objects = self.selected_objects();
-        (!objects.is_empty()).then(|| objects.iter().map(|o| o.paths.len()).sum())
+        (!self.selection.is_empty()).then(|| self.selected_paths().len())
+    }
+
+    /// How many paths the objects with something selected have in all.
+    #[must_use]
+    pub fn selected_object_path_count(&self) -> usize {
+        self.selected_objects().iter().map(|o| o.paths.len()).sum()
+    }
+
+    /// Whether shapes inside an object are selected, rather than only whole objects.
+    #[must_use]
+    pub fn has_shape_selection(&self) -> bool {
+        self.selection.has_shapes()
+    }
+
+    /// Every selected path with its object: all the paths of a whole object, or the shapes
+    /// chosen inside it. This is what operations are assigned to.
+    fn selected_paths(&self) -> Vec<(ObjectId, Arc<ShapePath>)> {
+        self.selected_objects()
+            .iter()
+            .flat_map(|object| {
+                object
+                    .paths
+                    .iter()
+                    .filter(|path| self.selection.includes_path(object.id, &path.key))
+                    .map(|path| (object.id, Arc::clone(path)))
+                    .collect::<Vec<_>>()
+            })
+            .collect()
     }
 
     /// How many layout warnings and errors the cheap validation pass finds.
@@ -1218,6 +1250,10 @@ impl AppState {
     // ---- arranging the selection ----
 
     fn arrange_items(&self) -> Vec<ArrangeItem> {
+        // Shapes share their object's transform, so there is nothing to arrange on its own.
+        if self.selection.has_shapes() {
+            return Vec::new();
+        }
         self.selected_objects()
             .iter()
             .filter_map(|o| {
@@ -1611,49 +1647,136 @@ impl AppState {
         true
     }
 
-    /// Assigns an operation of `kind` using the tool `tool` (a library reference such as
-    /// `generic.drag-blade@1.0.0`) to every path of the selected objects, as one undo step.
-    /// False when nothing is selected or the reference is not valid.
+    /// Like [`Self::assign_operation_row`], for callers that do not need the new row.
     pub fn assign_operation(&mut self, kind: OpKind, tool: &str, now_ms: u64) -> bool {
-        let Ok(tool) = tool.parse::<LibRef>() else {
-            return false;
-        };
-        let row = self.row_for(kind, &tool);
+        self.assign_operation_row(kind, tool, now_ms).is_some()
+    }
+
+    /// Adds an operation of `kind` using the tool `tool` (a library reference such as
+    /// `generic.drag-blade@1.0.0`) to every selected path, as one undo step, and
+    /// returns its row. Every call makes a new row that runs last, so the same operation can be
+    /// repeated with its own colour and settings. `None` when nothing is selected or the
+    /// reference is not valid.
+    pub fn assign_operation_row(
+        &mut self,
+        kind: OpKind,
+        tool: &str,
+        now_ms: u64,
+    ) -> Option<OpRowId> {
+        let tool = tool.parse::<LibRef>().ok()?;
+        let row = OpRowId::new();
         let mut cmds: Vec<Box<dyn ModelCommand>> = Vec::new();
-        for object in self.selected_objects() {
-            for path in object.paths.iter() {
-                cmds.push(Box::new(AssignOperation {
-                    mat: self.mat,
-                    object: object.id,
-                    path: path.key.clone(),
-                    op: Operation {
-                        id: OpId::new(),
-                        kind,
-                        tool: ToolSlotRef {
-                            tool: tool.clone(),
-                            pen_colour: None,
-                        },
-                        overrides: ParamOverrides::default(),
-                        fill: None,
-                        enabled: true,
-                        row,
+        for (object, path) in self.selected_paths() {
+            cmds.push(Box::new(AssignOperation {
+                mat: self.mat,
+                object,
+                path: path.key.clone(),
+                op: Operation {
+                    id: OpId::new(),
+                    kind,
+                    tool: ToolSlotRef {
+                        tool: tool.clone(),
+                        pen_colour: None,
                     },
-                }));
-            }
+                    overrides: ParamOverrides::default(),
+                    fill: None,
+                    enabled: true,
+                    row,
+                },
+            }));
         }
+        if cmds.is_empty() {
+            return None;
+        }
+        // Spell out the whole order: rows missing from it would otherwise sort after this one.
+        let mut order: Vec<OpRowId> = self.operation_rows().iter().map(|r| r.id).collect();
+        order.push(row);
+        cmds.push(Box::new(SetOpOrder {
+            mat: self.mat,
+            order,
+        }));
+        self.commit(&cmds, now_ms).then_some(row)
+    }
+
+    /// The selected paths that do not carry `row` yet.
+    fn paths_not_on_row(&self, row: OpRowId) -> Vec<(ObjectId, PathKey)> {
+        self.selected_paths()
+            .into_iter()
+            .filter(|(_, path)| path.ops.iter().all(|op| op.row != row))
+            .map(|(object, path)| (object, path.key.clone()))
+            .collect()
+    }
+
+    /// The operations of `row` on the selected paths.
+    fn selected_ops_on_row(&self, row: OpRowId) -> Vec<(ObjectId, PathKey, OpId)> {
+        self.selected_paths()
+            .into_iter()
+            .flat_map(|(object, path)| {
+                path.ops
+                    .iter()
+                    .filter(|op| op.row == row)
+                    .map(|op| (object, path.key.clone(), op.id))
+                    .collect::<Vec<_>>()
+            })
+            .collect()
+    }
+
+    /// Whether [`Self::remove_selection_from_row`] has anything to do.
+    #[must_use]
+    pub fn can_remove_selection_from_row(&self, row: OpRowId) -> bool {
+        !self.selected_ops_on_row(row).is_empty()
+    }
+
+    /// Takes the row's operation off the selected paths only, as one undo step. False when none
+    /// of them has it.
+    pub fn remove_selection_from_row(&mut self, row: OpRowId, now_ms: u64) -> bool {
+        let cmds: Vec<Box<dyn ModelCommand>> = self
+            .selected_ops_on_row(row)
+            .into_iter()
+            .map(|(object, path, op)| {
+                Box::new(ps_model::RemoveOperation {
+                    mat: self.mat,
+                    object,
+                    path,
+                    op,
+                }) as Box<dyn ModelCommand>
+            })
+            .collect();
         !cmds.is_empty() && self.commit(&cmds, now_ms)
     }
 
-    /// The row an operation of `kind` with `tool` joins on the current mat: the existing row of
-    /// that kind and tool, or a new one.
-    fn row_for(&self, kind: OpKind, tool: &LibRef) -> OpRowId {
-        let mat = self.current_mat();
-        mat.objects
-            .values()
-            .flat_map(|o| o.paths.iter())
-            .flat_map(|p| p.ops.iter())
-            .find(|op| op.kind == kind && &op.tool.tool == tool)
-            .map_or_else(OpRowId::new, |op| op.row)
+    /// Whether [`Self::add_selection_to_row`] has anything to do.
+    #[must_use]
+    pub fn can_add_selection_to_row(&self, row: OpRowId) -> bool {
+        !self.row_operations(row).is_empty() && !self.paths_not_on_row(row).is_empty()
+    }
+
+    /// Puts an existing row's operation, with its tool, ink, fill and settings, on every selected
+    /// path that does not have it, as one undo step. False when there is no such row or nothing
+    /// to add.
+    pub fn add_selection_to_row(&mut self, row: OpRowId, now_ms: u64) -> bool {
+        let ops = self.row_operations(row);
+        let Some((_, _, template)) = ops.first() else {
+            return false;
+        };
+        // The new paths run unless the whole row is switched off.
+        let enabled = ops.iter().any(|(_, _, op)| op.enabled);
+        let cmds: Vec<Box<dyn ModelCommand>> = self
+            .paths_not_on_row(row)
+            .into_iter()
+            .map(|(object, path)| {
+                let mut op = (**template).clone();
+                op.id = OpId::new();
+                op.enabled = enabled;
+                Box::new(AssignOperation {
+                    mat: self.mat,
+                    object,
+                    path,
+                    op,
+                }) as Box<dyn ModelCommand>
+            })
+            .collect();
+        !cmds.is_empty() && self.commit(&cmds, now_ms)
     }
 
     /// The realistic preview of the current mat's compiled job at `px_per_mm`, drawing only the
@@ -1703,6 +1826,8 @@ impl AppState {
                             tool: op.tool.tool.to_string(),
                             tool_name: String::new(),
                             holder: String::new(),
+                            // The chosen ink; the pen's own is filled in from the library.
+                            ink: op.tool.pen_colour.clone(),
                             paths: 0,
                             length_mm: 0.0,
                             enabled: true,
@@ -1766,6 +1891,11 @@ impl AppState {
                 continue;
             };
             row.tool_name.clone_from(&found.item.name);
+            row.ink = found
+                .item
+                .pen
+                .as_ref()
+                .map(|pen| row.ink.take().unwrap_or_else(|| pen.colour.hex.clone()));
             row.holder = found
                 .item
                 .holders
@@ -2044,10 +2174,20 @@ impl AppState {
 
     fn after_history_change(&mut self, now_ms: u64) {
         self.switch_to_a_mat_that_exists();
+        self.drop_stale_selection();
+        self.debounce.touch(now_ms);
+    }
+
+    /// Forgets whatever is selected that the document no longer has.
+    fn drop_stale_selection(&mut self) {
         let mat = self.current_mat();
         self.selection
             .retain_existing(|o| mat.objects.contains_key(&o));
-        self.debounce.touch(now_ms);
+        self.selection.retain_paths(|o, key| {
+            mat.objects
+                .get(&o)
+                .is_some_and(|o| o.paths.iter().any(|p| p.key == *key))
+        });
     }
 
     fn commit(&mut self, cmds: &[Box<dyn ModelCommand>], now_ms: u64) -> bool {
@@ -2057,9 +2197,7 @@ impl AppState {
             return false;
         }
         self.switch_to_a_mat_that_exists();
-        let mat = self.current_mat();
-        self.selection
-            .retain_existing(|o| mat.objects.contains_key(&o));
+        self.drop_stale_selection();
         self.debounce.touch(now_ms);
         true
     }
@@ -2074,6 +2212,9 @@ impl AppState {
     }
 
     fn move_selection(&mut self, dx: f64, dy: f64, now_ms: u64) {
+        if self.selection.has_shapes() {
+            return;
+        }
         let cmds: Vec<Box<dyn ModelCommand>> = self
             .selected_objects()
             .iter()
@@ -2089,17 +2230,30 @@ impl AppState {
     }
 
     fn delete_selection(&mut self, now_ms: u64) {
-        let cmds: Vec<Box<dyn ModelCommand>> = self
-            .selection
-            .objects()
-            .into_iter()
-            .map(|object| {
-                Box::new(RemoveObject {
+        let mut cmds: Vec<Box<dyn ModelCommand>> = Vec::new();
+        for object in self.selected_objects() {
+            let chosen: Vec<&PathKey> = object
+                .paths
+                .iter()
+                .map(|p| &p.key)
+                .filter(|key| self.selection.includes_path(object.id, key))
+                .collect();
+            // Taking every shape takes the object: one with no paths would be nothing.
+            if chosen.len() == object.paths.len() {
+                cmds.push(Box::new(RemoveObject {
                     mat: self.mat,
-                    object,
-                }) as Box<dyn ModelCommand>
-            })
-            .collect();
+                    object: object.id,
+                }));
+                continue;
+            }
+            for path in chosen {
+                cmds.push(Box::new(RemovePath {
+                    mat: self.mat,
+                    object: object.id,
+                    path: path.clone(),
+                }));
+            }
+        }
         self.commit(&cmds, now_ms);
     }
 
@@ -2152,6 +2306,9 @@ impl AppState {
     }
 
     fn duplicate_selection(&mut self, now_ms: u64) {
+        if self.selection.has_shapes() {
+            return;
+        }
         let mut copies = Vec::new();
         let cmds: Vec<Box<dyn ModelCommand>> = self
             .selected_objects()
@@ -2177,24 +2334,36 @@ impl AppState {
 
     fn tool_ctx(&self) -> ToolCtx {
         let mat = self.current_mat();
-        let pickables: Vec<Pickable<ObjectId>> = mat
+        let (pickables, pickable_keys): (Vec<Pickable<ObjectId>>, Vec<PathKey>) = mat
             .objects
             .values()
             .filter(|o| !o.hidden)
             .flat_map(|o| {
-                o.paths.iter().map(|p| Pickable {
-                    id: o.id,
-                    path: p.geom.transformed(o.transform),
-                    filled: p.geom.closed,
+                o.paths.iter().map(|p| {
+                    let pickable = Pickable {
+                        id: o.id,
+                        path: p.geom.transformed(o.transform),
+                        filled: p.geom.closed,
+                    };
+                    (pickable, p.key.clone())
                 })
             })
-            .collect();
-        let selected = self
+            .unzip();
+        let shapes: Vec<(ObjectId, PathKey)> = self
             .selection
-            .objects()
-            .into_iter()
-            .filter_map(|id| mat.objects.get(&id).map(|o| (id, o.transform)))
+            .shapes()
+            .map(|(o, p)| (o, p.clone()))
             .collect();
+        // Nothing moves while shapes are being picked, so no object counts as selected then.
+        let selected = if shapes.is_empty() {
+            self.selection
+                .objects()
+                .into_iter()
+                .filter_map(|id| mat.objects.get(&id).map(|o| (id, o.transform)))
+                .collect()
+        } else {
+            Vec::new()
+        };
         let edit_paths = if matches!(
             self.tool_id,
             ToolId::Node | ToolId::Knife | ToolId::StartPoint
@@ -2212,7 +2381,11 @@ impl AppState {
             ids.into_iter()
                 .filter_map(|id| mat.objects.get(&id))
                 .flat_map(|o| {
-                    o.paths.iter().map(|p| EditPath {
+                    // The knife cuts only the chosen shapes of an object that has some chosen.
+                    let wanted = o.paths.iter().filter(|p| {
+                        self.tool_id != ToolId::Knife || self.selection.includes_path(o.id, &p.key)
+                    });
+                    wanted.map(|p| EditPath {
                         object: o.id,
                         path: p.key.clone(),
                         geom: p.geom.clone(),
@@ -2229,6 +2402,8 @@ impl AppState {
             new_path: PathKey::source(format!("p-{}", ObjectId::new())),
             zoom: self.viewport.zoom(),
             pickables,
+            pickable_keys,
+            shapes,
             selected,
             sides: self.tool_sides,
             star_ratio: self.star_ratio,
@@ -2248,6 +2423,18 @@ impl AppState {
     /// Highlights the paths of one operations row (while the pointer is over it), or none.
     pub fn set_highlight_row(&mut self, row: Option<OpRowId>) {
         self.highlight_row = row;
+    }
+
+    /// The object, or the one shape of it, highlighted from the layers panel, if any.
+    #[must_use]
+    pub fn highlight_layer(&self) -> Option<&(ObjectId, Option<PathKey>)> {
+        self.highlight_layer.as_ref()
+    }
+
+    /// Highlights an object (no path) or one of its shapes while the pointer is on its row in
+    /// the layers panel, or none.
+    pub fn set_highlight_layer(&mut self, layer: Option<(ObjectId, Option<PathKey>)>) {
+        self.highlight_layer = layer;
     }
 
     /// The objects a gesture in progress is moving, and the transform applied to them so far.
@@ -2484,6 +2671,13 @@ impl AppState {
             ToolOutcome::SelectNode(item) => {
                 self.selection.select(item);
             }
+            ToolOutcome::SelectShapes(shapes) => self.selection.set_shapes(&shapes),
+            ToolOutcome::AddShapes(shapes) => {
+                for (object, path) in shapes {
+                    self.selection.add_shape(object, path);
+                }
+            }
+            ToolOutcome::ToggleShape(object, path) => self.selection.toggle_shape(object, path),
             ToolOutcome::Idle | ToolOutcome::Preview | ToolOutcome::Cancel => {}
         }
     }
@@ -2560,6 +2754,16 @@ impl AppState {
         self.store.transaction(label, &cmds, now_ms)?;
         self.debounce.touch(now_ms);
         Ok(())
+    }
+
+    /// Makes exactly these shapes (object and path) the selection.
+    pub(crate) fn select_shapes(&mut self, shapes: &[(ObjectId, PathKey)]) {
+        self.selection.set_shapes(shapes);
+    }
+
+    /// Adds a shape to the selection or takes it out (Shift-click in the project tree).
+    pub(crate) fn toggle_shape(&mut self, object: ObjectId, path: PathKey) {
+        self.selection.toggle_shape(object, path);
     }
 
     /// Makes one object the whole selection (a click in the project tree).

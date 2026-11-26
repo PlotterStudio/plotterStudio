@@ -419,6 +419,36 @@ fn assigning_an_operation_creates_a_row_that_query_lists() {
 }
 
 #[test]
+fn assigning_again_replies_with_the_new_row_and_objects_can_join_a_row() {
+    let mut a = app();
+    let one = rect(&mut a, 0.0, 0.0, 10.0, 10.0);
+    let two = rect(&mut a, 20.0, 0.0, 10.0, 10.0);
+    let assign = |a: &mut _| {
+        call(
+            a,
+            "operation",
+            json!({"op": "assign", "objects": [one], "kind": "cut", "tool": BLADE}),
+        )["row"]
+            .as_str()
+            .expect("the row id")
+            .to_owned()
+    };
+    let first = assign(&mut a);
+    let second = assign(&mut a);
+    assert_ne!(first, second);
+    call(
+        &mut a,
+        "operation",
+        json!({"op": "add_objects", "row": second, "objects": [two]}),
+    );
+    let rows = call(&mut a, "query", json!({"what": "rows"}));
+    assert_eq!(rows["rows"][0]["id"], first);
+    assert_eq!(rows["rows"][0]["paths"], 1);
+    assert_eq!(rows["rows"][1]["id"], second);
+    assert_eq!(rows["rows"][1]["paths"], 2);
+}
+
+#[test]
 fn a_tool_that_does_not_exist_is_refused() {
     let mut a = app();
     let id = rect(&mut a, 0.0, 0.0, 10.0, 10.0);
@@ -1077,4 +1107,77 @@ fn editing_after_a_compile_makes_the_result_stale() {
     rect(&mut a, 0.0, 0.0, 5.0, 5.0);
     let status = call(&mut a, "compile", json!({"op": "status"}));
     assert_eq!(status["current"], false);
+}
+
+#[test]
+fn shapes_inside_an_object_can_be_listed_assigned_and_deleted() {
+    let mut a = app();
+    let path = |key: &str, x: f64| {
+        std::sync::Arc::new(ps_model::ShapePath {
+            key: ps_core::PathKey::source(key),
+            geom: ps_geometry::Path::rect(x, 0.0, 10.0, 10.0),
+            fill_rule: ps_geometry::FillRule::NonZero,
+            style: ps_model::SourceStyle::default(),
+            ops: Vec::new(),
+            start_locked: false,
+        })
+    };
+    let id = ObjectId::new();
+    let add: Box<dyn ps_model::Command> = Box::new(ps_model::AddObject {
+        mat: a.state().mat_id(),
+        object: ps_model::PlacedObject {
+            id,
+            source: None,
+            transform: ps_geometry::Affine::IDENTITY,
+            group: None,
+            attach: None,
+            paths: std::sync::Arc::new(vec![path("a", 0.0), path("b", 20.0), path("c", 40.0)]),
+            locked: false,
+            hidden: false,
+        },
+    });
+    assert!(a.state_mut().commit_all(&[add], 0));
+    let id = id.to_string();
+    let listed = call(&mut a, "query", json!({"what": "objects"}));
+    let keys: Vec<String> = listed["objects"][0]["paths"]
+        .as_array()
+        .expect("paths")
+        .iter()
+        .map(|p| p["key"].as_str().expect("a key").to_owned())
+        .collect();
+    assert_eq!(keys.len(), 3);
+
+    let row = call(
+        &mut a,
+        "operation",
+        json!({"op": "assign", "objects": [id], "paths": [keys[0], keys[1]],
+               "kind": "cut", "tool": BLADE}),
+    )["row"]
+        .clone();
+    let selection = call(&mut a, "query", json!({"what": "selection"}));
+    assert_eq!(selection["shapes"].as_array().map(Vec::len), Some(2));
+    call(
+        &mut a,
+        "operation",
+        json!({"op": "remove_objects", "row": row, "objects": [id], "paths": [keys[0]]}),
+    );
+    let rows = call(&mut a, "query", json!({"what": "rows"}));
+    assert_eq!(rows["rows"][0]["paths"], 1);
+
+    let error = fail(
+        &mut a,
+        "object",
+        json!({"op": "delete", "objects": [id], "paths": ["nope"]}),
+    );
+    assert_eq!(error.code, "unknown_path");
+    call(
+        &mut a,
+        "object",
+        json!({"op": "delete", "objects": [id], "paths": [keys[2]]}),
+    );
+    let listed = call(&mut a, "query", json!({"what": "objects"}));
+    assert_eq!(
+        listed["objects"][0]["paths"].as_array().map(Vec::len),
+        Some(2)
+    );
 }

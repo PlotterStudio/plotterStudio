@@ -1873,6 +1873,35 @@ fn blank_text_shows_why_nothing_was_added() {
     h.get_by_label_contains("no text");
 }
 
+// ---- repeating operations ----
+
+#[test]
+fn adding_an_operation_again_makes_a_second_row_and_selects_it() {
+    let mut h = harness(compiled_app());
+    h.run();
+    h.get_by_label("+ Cut").click_accesskit();
+    h.run_steps(3);
+    let rows = h.state().state().operation_rows();
+    assert_eq!(rows.len(), 2);
+    assert_eq!(h.state().current_row(&rows), Some(rows[1].id));
+    // The two rows can be told apart by name.
+    h.get_by_label("Select operation: Cut (2)");
+}
+
+#[test]
+fn the_selection_can_be_added_to_the_chosen_row() {
+    let mut a = compiled_app();
+    draw_rect(&mut a, p(150.0, 150.0), p(200.0, 190.0));
+    let mut h = harness(a);
+    h.run();
+    h.get_by_label("Add selection to this operation")
+        .click_accesskit();
+    h.run_steps(3);
+    let rows = h.state().state().operation_rows();
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].paths, 2);
+}
+
 // ---- the operations table ----
 
 fn two_row_app() -> App {
@@ -2591,4 +2620,241 @@ fn a_link_that_serves_something_else_is_refused_before_anything_is_written() {
     h.get_by_label("Download and install").click_accesskit();
     wait_for_text(&mut h, "The plugin could not be installed");
     assert!(!folder.exists());
+}
+
+#[test]
+fn a_selected_shape_is_named_and_can_be_taken_off_the_chosen_row() {
+    let mut a = compiled_app();
+    let square = |key: &str, x: f64| {
+        std::sync::Arc::new(ps_model::ShapePath {
+            key: ps_core::PathKey::source(key),
+            geom: ps_geometry::Path::rect(x, 150.0, 30.0, 30.0),
+            fill_rule: ps_geometry::FillRule::NonZero,
+            style: ps_model::SourceStyle::default(),
+            ops: Vec::new(),
+            start_locked: false,
+        })
+    };
+    let id = ps_core::ObjectId::new();
+    let add: Box<dyn ps_model::Command> = Box::new(ps_model::AddObject {
+        mat: a.state.mat_id(),
+        object: ps_model::PlacedObject {
+            id,
+            source: None,
+            transform: ps_geometry::Affine::IDENTITY,
+            group: None,
+            attach: None,
+            paths: std::sync::Arc::new(vec![square("a", 20.0), square("b", 80.0)]),
+            locked: false,
+            hidden: false,
+        },
+    });
+    assert!(a.state.commit_all(&[add], 0));
+    a.state.select_object(id);
+    a.assign_operation(OpKind::Draw, "pen.fineliner-black-0.4@1.0.0", 0);
+    let mut h = harness(a);
+    h.run();
+    h.get_by_label("Double-click a shape to select it");
+    h.state_mut()
+        .state
+        .select_shapes(&[(id, ps_core::PathKey::source("a"))]);
+    h.run_steps(3);
+    h.get_by_label("1 of 2 shapes · Esc for the whole object");
+    h.get_by_label("Remove selection from this operation")
+        .click_accesskit();
+    h.run_steps(3);
+    let rows = h.state().state().operation_rows();
+    assert_eq!(rows.len(), 2);
+    assert_eq!(rows[1].paths, 1);
+}
+
+// ---- shapes in the layers panel ----
+
+/// An app holding one object of three square shapes.
+fn app_with_shapes() -> (App, ps_core::ObjectId) {
+    let mut a = app();
+    let square = |key: &str, x: f64| {
+        std::sync::Arc::new(ps_model::ShapePath {
+            key: ps_core::PathKey::source(key),
+            geom: ps_geometry::Path::rect(x, 150.0, 30.0, 30.0),
+            fill_rule: ps_geometry::FillRule::NonZero,
+            style: ps_model::SourceStyle::default(),
+            ops: Vec::new(),
+            start_locked: false,
+        })
+    };
+    let id = ps_core::ObjectId::new();
+    let add: Box<dyn ps_model::Command> = Box::new(ps_model::AddObject {
+        mat: a.state.mat_id(),
+        object: ps_model::PlacedObject {
+            id,
+            source: None,
+            transform: ps_geometry::Affine::IDENTITY,
+            group: None,
+            attach: None,
+            paths: std::sync::Arc::new(vec![
+                square("a", 20.0),
+                square("b", 80.0),
+                square("c", 140.0),
+            ]),
+            locked: false,
+            hidden: false,
+        },
+    });
+    assert!(a.state.commit_all(&[add], 0));
+    (a, id)
+}
+
+fn shape_keys(h: &Harness<'static, App>) -> Vec<String> {
+    h.state()
+        .state()
+        .selection()
+        .shapes()
+        .map(|(_, key)| key.to_string())
+        .collect()
+}
+
+fn toggled(h: &Harness<'static, App>, label: &str) -> bool {
+    h.get_by_label(label).accesskit_node().toggled() == Some(egui::accesskit::Toggled::True)
+}
+
+#[test]
+fn an_object_folds_out_into_its_shapes_and_back() {
+    let (a, _) = app_with_shapes();
+    let mut h = harness(a);
+    h.run();
+    assert!(
+        h.query_by_label("Object 1, shape 1").is_none(),
+        "folded at first"
+    );
+    h.get_by_label("Show shapes: Object 1").click();
+    h.run();
+    for label in [
+        "Object 1, shape 1",
+        "Object 1, shape 2",
+        "Object 1, shape 3",
+    ] {
+        h.get_by_label(label);
+    }
+    assert!(
+        h.state().state().selection().is_empty(),
+        "folding out selects nothing"
+    );
+    h.get_by_label("Hide shapes: Object 1").click();
+    h.run();
+    assert!(h.query_by_label("Object 1, shape 1").is_none());
+}
+
+#[test]
+fn an_object_of_one_shape_has_nothing_to_fold_out() {
+    let mut a = app();
+    draw_rect(&mut a, p(10.0, 10.0), p(40.0, 30.0));
+    let mut h = harness(a);
+    h.run();
+    assert!(h.query_by_label("Show shapes: Object 1").is_none());
+}
+
+#[test]
+fn clicking_a_shape_in_the_list_selects_it_alone_and_the_object_row_takes_all() {
+    let (a, id) = app_with_shapes();
+    let mut h = harness(a);
+    h.run();
+    h.get_by_label("Show shapes: Object 1").click();
+    h.run();
+    h.get_by_label("Object 1, shape 2").click();
+    h.run();
+    assert_eq!(shape_keys(&h), vec!["src:b"]);
+    assert!(toggled(&h, "Object 1, shape 2"));
+    assert!(!toggled(&h, "Object 1, shape 1"));
+    h.get_by_label("Object 1, shape 3").click();
+    h.run();
+    assert_eq!(shape_keys(&h), vec!["src:c"]);
+    h.get_by_label("Object 1").click();
+    h.run();
+    assert_eq!(shape_keys(&h), Vec::<String>::new());
+    assert_eq!(h.state().state().selection().objects(), vec![id]);
+}
+
+#[test]
+fn shift_or_command_clicking_shapes_in_the_list_adds_and_removes_them() {
+    let (a, _) = app_with_shapes();
+    let mut h = harness(a);
+    h.run();
+    h.get_by_label("Show shapes: Object 1").click();
+    h.run();
+    h.get_by_label("Object 1, shape 1").click();
+    h.run();
+    h.get_by_label("Object 1, shape 3")
+        .click_modifiers(egui::Modifiers::SHIFT);
+    h.run();
+    assert_eq!(shape_keys(&h), vec!["src:a", "src:c"]);
+    h.get_by_label("Object 1, shape 1")
+        .click_modifiers(egui::Modifiers::COMMAND);
+    h.run();
+    assert_eq!(shape_keys(&h), vec!["src:c"]);
+}
+
+#[test]
+fn selecting_a_shape_elsewhere_folds_its_object_out_once() {
+    let (a, id) = app_with_shapes();
+    let mut h = harness(a);
+    h.run();
+    h.state_mut()
+        .state
+        .select_shapes(&[(id, ps_core::PathKey::source("b"))]);
+    h.run_steps(3);
+    assert!(toggled(&h, "Object 1, shape 2"));
+    h.get_by_label("Hide shapes: Object 1").click();
+    h.run();
+    assert!(
+        h.query_by_label("Object 1, shape 2").is_none(),
+        "stays folded while the selection is unchanged"
+    );
+}
+
+#[test]
+fn a_shape_in_the_list_says_what_runs_on_it_and_in_which_ink() {
+    let (mut a, id) = app_with_shapes();
+    a.state
+        .select_shapes(&[(id, ps_core::PathKey::source("b"))]);
+    let row = a
+        .state
+        .assign_operation_row(OpKind::Draw, "pen.fineliner-black-0.4@1.0.0", 0)
+        .expect("a row");
+    assert!(a.state.set_row_pen_colour(row, Some("#D32F2F"), 1));
+    let mut h = harness(a);
+    h.run();
+    h.run();
+    h.get_by_label("Object 1, shape 2: Draw #D32F2F");
+    assert!(h.query_by_label_contains("Object 1, shape 1:").is_none());
+}
+
+#[test]
+fn hovering_a_layers_row_highlights_that_object_or_shape_until_the_pointer_leaves() {
+    let (a, id) = app_with_shapes();
+    let mut h = harness(a);
+    h.run();
+    h.get_by_label("Show shapes: Object 1").click();
+    h.run();
+    let highlighted = |h: &Harness<'static, App>| h.state().state().highlight_layer().cloned();
+
+    h.get_by_label("Object 1").hover();
+    h.run();
+    assert_eq!(highlighted(&h), Some((id, None)));
+
+    h.get_by_label("Object 1, shape 2").hover();
+    h.run();
+    assert_eq!(
+        highlighted(&h),
+        Some((id, Some(ps_core::PathKey::source("b"))))
+    );
+
+    // Onto the canvas.
+    h.hover_at(egui::pos2(600.0, 400.0));
+    h.run();
+    assert_eq!(highlighted(&h), None);
+    assert!(
+        h.state().state().selection().is_empty(),
+        "hover selects nothing"
+    );
 }

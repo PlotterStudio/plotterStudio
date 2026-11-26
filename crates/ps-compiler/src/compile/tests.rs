@@ -1191,13 +1191,13 @@ mod variants {
             "outer",
             vec![op(PEN, OpKind::Fill, 1, 100)],
         )]);
+        // One row: `at_unix_ms` gives a new id on every call, so it is taken once.
+        let first = op(PEN, OpKind::Fill, 1, 100);
+        let mut second = op(PEN, OpKind::Fill, 1, 101);
+        second.row = first.row;
         let with_hole = fill_length(vec![
-            even_odd_path(outer(), "outer", vec![op(PEN, OpKind::Fill, 1, 100)]),
-            even_odd_path(
-                Path::rect(35.0, 35.0, 30.0, 30.0),
-                "inner",
-                vec![op(PEN, OpKind::Fill, 1, 101)],
-            ),
+            even_odd_path(outer(), "outer", vec![first]),
+            even_odd_path(Path::rect(35.0, 35.0, 30.0, 30.0), "inner", vec![second]),
         ]);
         assert!(alone > 0);
         assert!(
@@ -1552,6 +1552,59 @@ fn pens_of_different_colours_are_different_slots_and_say_which_ink() {
     );
 }
 
+/// A 20 mm square carrying `ops`.
+fn square_with(ops: Vec<Operation>) -> Document {
+    doc(vec![(
+        mat(1),
+        vec![rect_object(10, 10.0, 10.0, 20.0, 20.0, ops)],
+    )])
+}
+
+#[test]
+fn one_path_drawn_in_two_inks_is_drawn_twice_with_two_pens() {
+    let mut red = op(PEN, OpKind::Draw, 1, 100);
+    red.tool.pen_colour = Some("#C42B2B".to_owned());
+    let black = op(PEN, OpKind::Draw, 2, 101);
+    let once = run(&square_with(vec![red.clone()]));
+    let twice = run(&square_with(vec![red, black]));
+    assert_eq!(drawn(&twice.mats[0].steps), 2 * drawn(&once.mats[0].steps));
+    assert_eq!(twice.mats[0].tool_table.len(), 2);
+}
+
+#[test]
+fn two_fill_rows_on_one_object_both_hatch_it() {
+    let first = op(PEN, OpKind::Fill, 1, 100);
+    let second = op(PEN, OpKind::Fill, 2, 101);
+    let single = drawn(&run(&square_with(vec![first.clone()])).mats[0].steps);
+    assert!(single > 0);
+    let both = run(&square_with(vec![first, second]));
+    assert_eq!(drawn(&both.mats[0].steps), 2 * single);
+}
+
+#[test]
+fn cutting_the_same_outline_twice_is_not_a_release_order_problem() {
+    let first = op(BLADE, OpKind::Cut, 1, 100);
+    let second = op(BLADE, OpKind::Cut, 2, 101);
+    let ids = [first.id, second.id];
+    let job = run(&square_with(vec![first, second]));
+    assert!(
+        !keys(&job)
+            .iter()
+            .any(|k| k.starts_with("diag-release-order")),
+        "{:?}",
+        keys(&job)
+    );
+    for id in ids {
+        assert!(
+            job.mats[0].steps.iter().any(|s| matches!(
+                s,
+                Step::Line { src, .. } | Step::Arc { src, .. } if src.op == id
+            )),
+            "cut {id} is made"
+        );
+    }
+}
+
 #[test]
 fn a_wider_pen_fills_with_fewer_strokes_and_is_reported_in_the_tool_table() {
     let fill_with = |tip: Option<f64>| {
@@ -1709,4 +1762,49 @@ fn a_finely_flattened_circle_is_drawn_with_only_the_vectors_it_needs() {
     );
     let moves = drawn(&run(&doc(vec![(mat(1), vec![object])])).mats[0].steps);
     assert!((100..=160).contains(&moves), "{moves}");
+}
+
+#[test]
+fn shapes_of_one_object_plot_in_their_own_inks_and_the_rest_is_left_alone() {
+    let ink = |row, id, colour: &str| {
+        let mut o = op(PEN, OpKind::Draw, row, id);
+        o.tool.pen_colour = Some(colour.to_owned());
+        o
+    };
+    let blue = ink(1, 100, "#1E88E5");
+    let red = ink(2, 101, "#C42B2B");
+    let (blue_id, red_id) = (blue.id, red.id);
+    let lettered = object(
+        10,
+        vec![
+            path(Path::rect(10.0, 10.0, 20.0, 20.0), "a", vec![blue]),
+            path(Path::rect(50.0, 10.0, 20.0, 20.0), "b", vec![red]),
+            path(Path::rect(0.0, 0.0, 100.0, 100.0), "frame", vec![]),
+        ],
+    );
+    let job = run(&doc(vec![(mat(1), vec![lettered])]));
+    assert!(!job.is_blocked(), "{:?}", job.diagnostics);
+    // The shape left without an operation is pointed out, but does not stop the job.
+    assert_eq!(
+        keys(&job),
+        ["diag-missing-operation"],
+        "{:?}",
+        job.diagnostics
+    );
+    assert_eq!(job.mats[0].tool_table.len(), 2);
+    let made: Vec<(OpId, PathKey)> = job.mats[0]
+        .steps
+        .iter()
+        .filter_map(|s| match s {
+            Step::Line { src, .. } | Step::Arc { src, .. } => Some((src.op, src.path.clone())),
+            _ => None,
+        })
+        .collect();
+    for (made_by, key) in &made {
+        let wanted = if *made_by == blue_id { "a" } else { "b" };
+        assert!(*made_by == blue_id || *made_by == red_id);
+        assert_eq!(*key, PathKey::source(wanted), "the frame is never drawn");
+    }
+    assert!(made.iter().any(|(o, _)| *o == blue_id));
+    assert!(made.iter().any(|(o, _)| *o == red_id));
 }

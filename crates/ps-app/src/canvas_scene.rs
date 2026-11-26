@@ -64,22 +64,24 @@ fn add_guides(scene: &mut Scene, mat: &ps_model::Mat, zoom: f64) {
     }
 }
 
-/// How faint objects not in the highlighted operation are drawn.
+/// How faint everything outside the highlight is drawn.
 const DIMMED: f32 = 0.2;
 
 /// Draws every visible object: a faint fill for closed shapes, and strokes batched by colour and
 /// width in the operation's line style, with the selection in the accent colour. Objects a gesture
-/// is moving are drawn where the gesture has put them; the paths of a highlighted operation glow
-/// and everything else steps back.
+/// is moving are drawn where the gesture has put them; the paths of a highlighted operation or
+/// layers row are drawn heavier and everything else steps back.
 fn add_objects(scene: &mut Scene, state: &AppState, mat: &ps_model::Mat, zoom: f64) {
     let selected = state.selection().objects();
     let live = state.live_transform();
-    let highlight = state.highlight_row();
+    let row = state.highlight_row();
+    let layer = state.highlight_layer();
+    let highlighting = row.is_some() || layer.is_some();
     let tol = flatten_tolerance_mm(zoom);
     let mut batches: std::collections::BTreeMap<([u8; 3], u32, u32), Vec<[f32; 4]>> =
         std::collections::BTreeMap::new();
     for object in mat.objects.values().filter(|o| !o.hidden) {
-        let is_selected = selected.contains(&object.id);
+        let object_selected = selected.contains(&object.id);
         let transform = match &live {
             Some((ids, delta)) if ids.contains(&object.id) => *delta * object.transform,
             _ => object.transform,
@@ -88,19 +90,25 @@ fn add_objects(scene: &mut Scene, state: &AppState, mat: &ps_model::Mat, zoom: f
         // of being filled on top of it.
         let mut fills: Vec<([u8; 3], FillRule, f32, Vec<Path>)> = Vec::new();
         for path in object.paths.iter() {
+            let is_selected = state.selection().includes_path(object.id, &path.key);
             let kind = path.ops.first().map(|op| op.kind);
             let base = if is_selected {
                 ACCENT
             } else {
                 kind.map_or(NEUTRAL, colour_of)
             };
-            let in_highlight = highlight.is_some_and(|row| path.ops.iter().any(|op| op.row == row));
+            let in_layer = layer.is_some_and(|(id, key)| {
+                *id == object.id && key.as_ref().is_none_or(|key| *key == path.key)
+            });
+            let in_highlight =
+                in_layer || row.is_some_and(|row| path.ops.iter().any(|op| op.row == row));
             let all_off = !path.ops.is_empty() && path.ops.iter().all(|op| !op.enabled);
-            // The eye hides a shape whose every operation is off, selected or not shown.
-            if all_off && !is_selected {
+            // The eye hides a shape whose every operation is off, unless its object is selected
+            // or it is pointed at in the layers panel, so that it can still be seen and picked.
+            if all_off && !object_selected && !in_layer {
                 continue;
             }
-            let alpha = if highlight.is_some() && !in_highlight {
+            let alpha = if highlighting && !in_highlight {
                 DIMMED
             } else {
                 1.0
@@ -148,7 +156,7 @@ fn add_objects(scene: &mut Scene, state: &AppState, mat: &ps_model::Mat, zoom: f
                     }
                 }
             };
-            // A highlighted operation is drawn as a crisp, heavier line, not a glow.
+            // A highlighted path is drawn as a crisp, heavier line, not a glow.
             add(if in_highlight { width * 2.2 } else { width }, alpha);
         }
         for (base, rule, alpha, paths) in fills {

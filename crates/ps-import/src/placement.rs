@@ -2,9 +2,9 @@
 //!
 //! Creates the document objects for an imported drawing: one per layer, one per path, or one for
 //! everything (the user's choice), linked to the stored original asset, each path carrying the
-//! operation the mapping rules assigned. Operations that share a tool and kind share an operation
-//! row, so downstream they form one block. Unmapped paths get no operation and are reported by
-//! the compiler's validation instead of being given a silent default.
+//! operation the mapping rules assigned. Within one import, operations that share a kind, tool and
+//! ink share an operation row, so downstream they form one block. Unmapped paths get no operation
+//! and are reported by the compiler's validation instead of being given a silent default.
 
 use std::sync::Arc;
 
@@ -64,6 +64,8 @@ pub struct RowInfo {
     pub kind: OpKind,
     /// The tool it uses.
     pub tool: LibRef,
+    /// The ink chosen for it, as `#RRGGBB`; each ink gets a row of its own.
+    pub pen_colour: Option<String>,
 }
 
 /// The objects to add to a mat.
@@ -89,9 +91,10 @@ fn operation(
     pen_colour: Option<[u8; 3]>,
     rows: &mut Vec<RowInfo>,
 ) -> Operation {
+    let pen_colour = pen_colour.map(to_hex);
     let existing = rows
         .iter()
-        .find(|r| r.kind == kind && r.tool == tool)
+        .find(|r| r.kind == kind && r.tool == tool && r.pen_colour == pen_colour)
         .map(|r| r.row);
     let row = existing.unwrap_or_else(|| {
         let row = OpRowId::new();
@@ -99,16 +102,14 @@ fn operation(
             row,
             kind,
             tool: tool.clone(),
+            pen_colour: pen_colour.clone(),
         });
         row
     });
     Operation {
         id: OpId::new(),
         kind,
-        tool: ToolSlotRef {
-            tool,
-            pen_colour: pen_colour.map(to_hex),
-        },
+        tool: ToolSlotRef { tool, pen_colour },
         overrides: ParamOverrides::default(),
         fill: None,
         enabled: true,

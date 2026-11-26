@@ -191,6 +191,27 @@ fn the_pen_colour_chosen_by_pen_auto_is_recorded() {
 }
 
 #[test]
+fn two_inks_on_one_pen_get_a_row_each() {
+    let inked = |colour: [u8; 3]| Mapping::Assigned {
+        rule: 0,
+        op: OpKind::Draw,
+        tool: "pen".into(),
+        pen_colour: Some(colour),
+    };
+    let d = drawing(vec![rect("a", None), rect("b", None), rect("c", None)], &[]);
+    let m = vec![
+        inked([200, 30, 30]),
+        inked([0, 0, 255]),
+        inked([200, 30, 30]),
+    ];
+    let p = place_with(&d, &m, PlaceMode::PerLayer);
+    let rows: Vec<_> = p.objects[0].paths.iter().map(|s| s.ops[0].row).collect();
+    assert_eq!(rows[0], rows[2]);
+    assert_ne!(rows[0], rows[1]);
+    assert_eq!(p.rows.len(), 2);
+}
+
+#[test]
 fn operations_sharing_a_tool_and_kind_share_a_row() {
     let d = drawing(vec![rect("a", None), rect("b", None), rect("c", None)], &[]);
     let m = vec![

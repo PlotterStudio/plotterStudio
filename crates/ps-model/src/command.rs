@@ -667,6 +667,40 @@ impl Command for SplitPath {
     }
 }
 
+/// Takes one path out of an object. The last path cannot be taken; remove the object instead.
+#[derive(Debug, Clone)]
+pub struct RemovePath {
+    /// The mat.
+    pub mat: MatId,
+    /// The object.
+    pub object: ObjectId,
+    /// The path.
+    pub path: PathKey,
+}
+
+impl Command for RemovePath {
+    fn label(&self) -> L10nKey {
+        L10nKey::new("cmd-remove-path")
+    }
+    fn apply(&self, doc: &Document) -> Result<Document, CommandError> {
+        with_object(doc, self.mat, self.object, |o| {
+            let index = o
+                .paths
+                .iter()
+                .position(|p| p.key == self.path)
+                .ok_or_else(|| CommandError::NotFound(format!("path {}", self.path)))?;
+            if o.paths.len() == 1 {
+                return Err(CommandError::NotFound(format!(
+                    "a path to keep besides {}",
+                    self.path
+                )));
+            }
+            Arc::make_mut(&mut o.paths).remove(index);
+            Ok(())
+        })
+    }
+}
+
 /// Chooses where a closed path starts: the path is rotated to the outline point nearest `at` and
 /// locked there, so the compiler keeps that start. `None` unlocks it (the geometry stays as it is).
 #[derive(Debug, Clone)]

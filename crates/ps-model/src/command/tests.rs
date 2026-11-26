@@ -1479,3 +1479,34 @@ fn an_operations_fill_settings_can_be_set_and_cleared() {
             .is_none()
     );
 }
+
+#[test]
+fn removing_a_path_keeps_the_others_and_never_empties_an_object() {
+    let (mut s, m, o) = store();
+    let mut two = object(20, 1);
+    let mut second = (*two.paths[0]).clone();
+    second.key = PathKey::source("p2");
+    Arc::make_mut(&mut two.paths).push(Arc::new(second));
+    let id = two.id;
+    s.apply(
+        &AddObject {
+            mat: m,
+            object: two,
+        },
+        0,
+    )
+    .unwrap();
+    let remove = |object, key: &str| RemovePath {
+        mat: m,
+        object,
+        path: PathKey::source(key),
+    };
+    s.apply(&remove(id, "p1"), 1).unwrap();
+    let doc = s.document();
+    let left = &doc.mat(m).unwrap().objects[&id].paths;
+    assert_eq!(left.len(), 1);
+    assert_eq!(left[0].key, PathKey::source("p2"));
+    assert!(s.apply(&remove(id, "p2"), 2).is_err(), "the last one");
+    assert!(s.apply(&remove(id, "p1"), 3).is_err(), "already gone");
+    assert!(s.apply(&remove(o, "nope"), 4).is_err());
+}

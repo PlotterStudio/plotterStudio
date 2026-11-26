@@ -109,6 +109,31 @@ pub fn pick<Id: Clone>(items: &[Pickable<Id>], cursor: Point, zoom: f64) -> Opti
         .map(|item| item.id.clone())
 }
 
+/// The item under `cursor` a person most likely means when shapes nest: an outline within reach
+/// (the nearest, the topmost on a tie), otherwise the smallest filled item around the cursor.
+#[must_use]
+pub fn pick_innermost<Id: Clone>(items: &[Pickable<Id>], cursor: Point, zoom: f64) -> Option<Id> {
+    let radius = pick_radius_mm(zoom);
+    let tol = flatten_tolerance_mm(zoom);
+    let outline = items
+        .iter()
+        .rev()
+        .map(|item| (distance_to_path(cursor, &item.path, tol), item))
+        .filter(|(distance, _)| *distance <= radius)
+        .min_by(|a, b| a.0.total_cmp(&b.0))
+        .map(|(_, item)| item);
+    let area = |item: &Pickable<Id>| item.path.bounds().area();
+    outline
+        .or_else(|| {
+            items
+                .iter()
+                .rev()
+                .filter(|item| item.filled && winding_number(cursor, &item.path, tol) != 0)
+                .min_by(|a, b| area(a).total_cmp(&area(b)))
+        })
+        .map(|item| item.id.clone())
+}
+
 fn inside(r: Rect, p: Point) -> bool {
     p.x >= r.x0 && p.x <= r.x1 && p.y >= r.y0 && p.y <= r.y1
 }
