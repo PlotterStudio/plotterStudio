@@ -7,6 +7,30 @@ commits (see `cliff.toml`).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-26
+
+### Added
+- Install a device plugin from **Settings**, from a `.psdevice` file or an `https` link. It is
+  checked before anything is written and is available without a restart; replacing a running plugin
+  asks for one.
+- Shapes inside an object can be worked on one at a time. Double-click (or Ctrl-click, Command-click
+  on macOS) selects a shape, Escape goes back to the whole object, and the layers panel folds an
+  object out into its shapes. Selected shapes take operations of their own and can be deleted.
+- Pointing at a row in the layers panel highlights that object or shape on the mat.
+- The selection can be added to an existing operation row, with its settings, or taken off it. Pen
+  rows show their ink.
+- Automation: `paths` selects, deletes and assigns single shapes, and the `add_objects` and
+  `remove_objects` operations change what a row runs on.
+
+### Changed
+- Adding an operation always makes a new row that runs last, so a shape can be drawn twice, in two
+  inks for example, or filled twice. This applies to the automation `assign` operation too.
+- An import makes a separate operation row for each ink.
+
+### Fixed
+- Two fill rows on one object are each filled, instead of being merged into one region.
+- Cutting the same outline twice is no longer reported as a release-order problem.
+
 ## [0.1.1] - 2026-11-22
 
 ### Added

@@ -2755,7 +2755,7 @@ dependencies = [
 
 [[package]]
 name = "grbl-plugin"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "ps-device-sdk",
  "wit-bindgen",
@@ -4927,7 +4927,7 @@ dependencies = [
 
 [[package]]
 name = "ps-app"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "eframe",
  "egui",
@@ -4977,7 +4977,7 @@ dependencies = [
 
 [[package]]
 name = "ps-cli"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "clap",
  "criterion",
@@ -5001,7 +5001,7 @@ dependencies = [
 
 [[package]]
 name = "ps-compiler"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "libm",
  "lru",
@@ -5021,7 +5021,7 @@ dependencies = [
 
 [[package]]
 name = "ps-core"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "blake3",
  "proptest",
@@ -5035,7 +5035,7 @@ dependencies = [
 
 [[package]]
 name = "ps-device"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "arc-swap",
  "async-trait",
@@ -5068,11 +5068,11 @@ dependencies = [
 
 [[package]]
 name = "ps-device-sdk"
-version = "0.1.1"
+version = "0.2.0"
 
 [[package]]
 name = "ps-fuzz"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "pdf-writer",
  "ps-import",
@@ -5084,7 +5084,7 @@ dependencies = [
 
 [[package]]
 name = "ps-gcode"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "libm",
  "ps-compiler",
@@ -5101,7 +5101,7 @@ dependencies = [
 
 [[package]]
 name = "ps-geometry"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "boostvoronoi",
  "cavalier_contours",
@@ -5119,7 +5119,7 @@ dependencies = [
 
 [[package]]
 name = "ps-import"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "dxf",
  "epaint_default_fonts",
@@ -5145,7 +5145,7 @@ dependencies = [
 
 [[package]]
 name = "ps-job"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "jsonschema",
  "libm",
@@ -5161,7 +5161,7 @@ dependencies = [
 
 [[package]]
 name = "ps-library"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "directories",
  "image",
@@ -5181,7 +5181,7 @@ dependencies = [
 
 [[package]]
 name = "ps-model"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "indexmap",
  "ps-core",
@@ -5197,7 +5197,7 @@ dependencies = [
 
 [[package]]
 name = "ps-nest"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "criterion",
  "jagua-rs",
@@ -5212,7 +5212,7 @@ dependencies = [
 
 [[package]]
 name = "ps-net"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "minisign",
  "minisign-verify",
@@ -5227,7 +5227,7 @@ dependencies = [
 
 [[package]]
 name = "ps-render"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "bytemuck",
  "criterion",
@@ -5648,7 +5648,7 @@ checksum = "e5864e7ef1a6b7bcf1d6ca3f655e65e724ed3b52546a0d0a663c991522f552ea"
 
 [[package]]
 name = "rogue-plugin"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "wit-bindgen",
 ]
@@ -8562,7 +8562,7 @@ checksum = "ec7a2a501ed189703dba8b08142f057e887dfc4b2cc4db2d343ac6376ba3e0b9"
 
 [[package]]
 name = "xtask"
-version = "0.1.1"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "cargo_metadata",
