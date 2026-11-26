@@ -5,9 +5,7 @@
 //! these tests.
 
 use std::fmt::Write as _;
-use std::path::PathBuf;
-use std::process::Command;
-use std::sync::{Arc, Mutex, Once};
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use ps_gcode::parse_program;
@@ -17,38 +15,7 @@ use crate::bus::ScopedBuses;
 use crate::driver::{Driver, DriverEvent};
 use crate::host::{DeviceId, DiscoveredDevice};
 use crate::types::{GcodeLine, JobHeader, MachineState};
-use crate::wasm::tests_support::{FakeBuses, port, serial_filters};
-
-// ---- building and loading the plugins ----
-
-fn target_dir() -> PathBuf {
-    std::env::var_os("CARGO_TARGET_DIR").map_or_else(
-        || PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../target"),
-        PathBuf::from,
-    )
-}
-
-fn build(package: &str) -> Vec<u8> {
-    static BUILD: Once = Once::new();
-    BUILD.call_once(|| {
-        for package in ["grbl-plugin", "rogue-plugin"] {
-            let status = Command::new(env!("CARGO"))
-                .args([
-                    "build",
-                    "-p",
-                    package,
-                    "--target",
-                    "wasm32-wasip2",
-                    "--release",
-                ])
-                .status()
-                .expect("cargo runs");
-            assert!(status.success(), "building {package} for wasm32-wasip2");
-        }
-    });
-    let file = format!("{}.wasm", package.replace('-', "_"));
-    std::fs::read(target_dir().join("wasm32-wasip2/release").join(file)).expect("the built plugin")
-}
+use crate::wasm::tests_support::{FakeBuses, plugin as build, port, serial_filters};
 
 // ---- a scripted blocking transport ----
 

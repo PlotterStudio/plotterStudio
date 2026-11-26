@@ -1069,8 +1069,10 @@ mod tests;
 /// Builds the plugins for tests elsewhere in the crate.
 #[cfg(test)]
 pub(crate) mod tests_support {
+    use std::collections::BTreeMap;
+    use std::path::PathBuf;
     use std::process::Command;
-    use std::sync::Once;
+    use std::sync::OnceLock;
 
     /// A fixed set of buses for plugin discovery tests; reading the serial list takes `delay`, as a
     /// slow driver would.
@@ -1127,25 +1129,36 @@ pub(crate) mod tests_support {
 
     /// The GRBL plugin as a component, built for `wasm32-wasip2` on first use.
     pub(crate) fn grbl() -> Vec<u8> {
-        static BUILD: Once = Once::new();
-        BUILD.call_once(|| {
-            let status = Command::new(env!("CARGO"))
-                .args([
-                    "build",
-                    "-p",
-                    "grbl-plugin",
-                    "--target",
-                    "wasm32-wasip2",
-                    "--release",
-                ])
-                .status()
-                .expect("cargo runs");
-            assert!(status.success(), "building grbl-plugin");
-        });
-        let dir = std::env::var_os("CARGO_TARGET_DIR").map_or_else(
-            || std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../target"),
-            std::path::PathBuf::from,
-        );
-        std::fs::read(dir.join("wasm32-wasip2/release/grbl_plugin.wasm")).expect("the built plugin")
+        plugin("grbl-plugin")
+    }
+
+    /// The named test plugin (`grbl-plugin` or `rogue-plugin`) as a component.
+    ///
+    /// Both are built and read once for the whole test binary: cargo replaces an output file even
+    /// when it is up to date, so a test that builds while another reads can find no file.
+    pub(crate) fn plugin(package: &str) -> Vec<u8> {
+        static BUILT: OnceLock<BTreeMap<&str, Vec<u8>>> = OnceLock::new();
+        BUILT.get_or_init(|| {
+            let target = std::env::var_os("CARGO_TARGET_DIR").map_or_else(
+                || PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../target"),
+                PathBuf::from,
+            );
+            ["grbl-plugin", "rogue-plugin"]
+                .into_iter()
+                .map(|package| {
+                    let status = Command::new(env!("CARGO"))
+                        .args(["build", "-p", package])
+                        .args(["--target", "wasm32-wasip2", "--release"])
+                        .status()
+                        .expect("cargo runs");
+                    assert!(status.success(), "building {package} for wasm32-wasip2");
+                    let file = format!("{}.wasm", package.replace('-', "_"));
+                    let wasm = std::fs::read(target.join("wasm32-wasip2/release").join(file))
+                        .expect("the built plugin");
+                    (package, wasm)
+                })
+                .collect()
+        })[package]
+            .clone()
     }
 }

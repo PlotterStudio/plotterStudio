@@ -12,7 +12,7 @@ use ps_model::{
     Document, Mat, MatSize, OpKind, Operation, ParamOverrides, PlacedObject, Project, ProjectMeta,
     ShapePath, SourceStyle, ToolSlotRef,
 };
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 const MACHINE: &str = "generic.cutter-small";
 const TIME: &str = "2026-01-01T00:00:00Z";
@@ -684,8 +684,16 @@ fn run_can_pick_one_mat() {
 
 // ---- device test ----
 
-fn grbl_package(dir: &Path) -> String {
-    use ps_device::{DeviceFilter, PluginManifest, TransportKind, pack};
+/// The GRBL component, built and read once for all tests.
+///
+/// Cargo replaces the output file even when it is up to date, so a test that builds while another
+/// reads can find no file.
+fn grbl_wasm() -> &'static [u8] {
+    static WASM: OnceLock<Vec<u8>> = OnceLock::new();
+    WASM.get_or_init(build_grbl_wasm)
+}
+
+fn build_grbl_wasm() -> Vec<u8> {
     let status = std::process::Command::new(env!("CARGO"))
         .args([
             "build",
@@ -702,7 +710,11 @@ fn grbl_package(dir: &Path) -> String {
         || Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target"),
         std::path::PathBuf::from,
     );
-    let wasm = fs::read(target.join("wasm32-wasip2/release/grbl_plugin.wasm")).unwrap();
+    fs::read(target.join("wasm32-wasip2/release/grbl_plugin.wasm")).unwrap()
+}
+
+fn grbl_package(dir: &Path) -> String {
+    use ps_device::{DeviceFilter, PluginManifest, TransportKind, pack};
     let manifest = PluginManifest {
         id: "acme.grbl".into(),
         name: "Acme GRBL".into(),
@@ -713,7 +725,7 @@ fn grbl_package(dir: &Path) -> String {
         internet_hosts: Vec::new(),
     };
     let path = dir.join("grbl.psdevice");
-    fs::write(&path, pack(&manifest, &wasm, "1.0.0").unwrap()).unwrap();
+    fs::write(&path, pack(&manifest, grbl_wasm(), "1.0.0").unwrap()).unwrap();
     path.to_string_lossy().into_owned()
 }
 

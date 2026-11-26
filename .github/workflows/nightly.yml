@@ -18,8 +18,14 @@ jobs:
       PROPTEST_CASES: "10000"
     steps:
       - uses: actions/checkout@v4
-      - run: sudo apt-get update && sudo apt-get install -y libudev-dev pkg-config
+      # The same packages and target as the CI test job: this runs the whole workspace.
+      - name: System packages (build-time)
+        run: >
+          sudo apt-get update && sudo apt-get install -y libudev-dev libdbus-1-dev pkg-config
+          libxkbcommon-dev libwayland-dev libx11-dev libxcursor-dev libxrandr-dev libxi-dev
+          libvulkan-dev mesa-vulkan-drivers
       - run: rustup toolchain install
+      - run: rustup target add wasm32-wasip2
       - uses: Swatinem/rust-cache@v2
       - run: cargo test --workspace --release --locked
 
@@ -70,7 +76,7 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
-      - run: sudo apt-get update && sudo apt-get install -y libudev-dev pkg-config libxkbcommon-dev libwayland-dev libx11-dev libxcursor-dev libxrandr-dev libxi-dev libvulkan-dev
+      - run: sudo apt-get update && sudo apt-get install -y libudev-dev libdbus-1-dev pkg-config libxkbcommon-dev libwayland-dev libx11-dev libxcursor-dev libxrandr-dev libxi-dev libvulkan-dev
       - run: rustup toolchain install
       - uses: Swatinem/rust-cache@v2
       - run: cargo build --release --locked -p ps-app -p ps-cli

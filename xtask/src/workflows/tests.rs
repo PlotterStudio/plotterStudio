@@ -312,3 +312,59 @@ fn the_fuzz_targets_call_the_shared_entry_points() {
         assert!(body.contains("fuzz_target!"), "{target}");
     }
 }
+
+/// The commands of every `run:` step of one job, joined with newlines.
+fn commands_of(w: &Value, job: &str) -> String {
+    w["jobs"][job]["steps"]
+        .as_sequence()
+        .unwrap()
+        .iter()
+        .filter_map(|step| step["run"].as_str())
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// A Linux job that compiles the application needs the D-Bus headers, or `libdbus-sys` fails its
+/// build script.
+#[test]
+fn linux_jobs_that_build_the_application_install_the_dbus_headers() {
+    for name in ["ci.yml", "nightly.yml", "release.yml"] {
+        let w = workflow(name);
+        for job in jobs(&w) {
+            let spec = &w["jobs"][job.as_str()];
+            let commands = commands_of(&w, &job);
+            let builds_app = commands.lines().any(|l| {
+                (l.contains("cargo build")
+                    || l.contains("cargo test")
+                    || l.contains("cargo clippy"))
+                    && (l.contains("--workspace") || l.contains("-p ps-app"))
+            });
+            // A job runs on Linux directly or through its system matrix.
+            let is_ubuntu = |os: &Value| os.as_str().is_some_and(|os| os.starts_with("ubuntu"));
+            let on_linux = is_ubuntu(&spec["runs-on"])
+                || spec["strategy"]["matrix"]["os"]
+                    .as_sequence()
+                    .is_some_and(|oses| oses.iter().any(is_ubuntu));
+            if on_linux && builds_app {
+                assert!(commands.contains("libdbus-1-dev"), "{name}: {job}");
+            }
+        }
+    }
+}
+
+/// The workspace tests build the device plugins, which needs their WebAssembly target.
+#[test]
+fn jobs_that_run_the_workspace_tests_add_the_plugin_target() {
+    for name in ["ci.yml", "nightly.yml"] {
+        let w = workflow(name);
+        for job in jobs(&w) {
+            let commands = commands_of(&w, &job);
+            if commands.contains("cargo test --workspace") {
+                assert!(
+                    commands.contains("rustup target add wasm32-wasip2"),
+                    "{name}: {job}"
+                );
+            }
+        }
+    }
+}

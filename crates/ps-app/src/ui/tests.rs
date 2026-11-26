@@ -636,8 +636,17 @@ fn running_job_harness(mode: &str) -> Harness<'static, App> {
     a.machine.connect(&id).unwrap();
     let mut h = shell_harness(a);
     h.run_steps(3);
-    h.state_mut().run("machine.send", 0);
+    // The device thread reports the machine ready some time after `connect` returns, and a job
+    // sent before that is refused.
     let deadline = std::time::Instant::now() + Duration::from_secs(60);
+    while !h.state().machine.is_ready() {
+        assert!(
+            std::time::Instant::now() < deadline,
+            "the machine never became ready"
+        );
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    h.state_mut().run("machine.send", 0);
     // The pill's pause button is the only "Pause" while the machine panel is closed.
     while h.query_by_label("Pause").is_none() {
         h.run_steps(2);
